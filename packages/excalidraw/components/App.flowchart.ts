@@ -33,6 +33,8 @@ type FlowchartOperation =
 export class AppFlowchart {
   private creator = new FlowChartCreator();
   private navigator = new FlowChartNavigator();
+  private dragStartNodeId: ExcalidrawElement["id"] | null = null;
+  private dragDirection: LinkDirection | null = null;
 
   constructor(private app: App) {}
 
@@ -48,6 +50,112 @@ export class AppFlowchart {
   clear = () => {
     this.creator.clear();
     this.navigator.clear();
+    this.dragStartNodeId = null;
+    this.dragDirection = null;
+  };
+
+  startDragPreview = (
+    startNode: NonDeletedExcalidrawElement,
+    direction: LinkDirection,
+    x: number,
+    y: number,
+  ) => {
+    if (!isFlowchartNodeElement(startNode) || startNode.locked) {
+      return;
+    }
+
+    this.dragStartNodeId = startNode.id;
+    this.dragDirection = direction;
+    this.creator.createNodeAt(
+      startNode,
+      this.app.state,
+      direction,
+      this.app.scene,
+      x,
+      y,
+    );
+    this.app.triggerRender(true);
+  };
+
+  updateDragPreview = (x: number, y: number) => {
+    if (!this.dragStartNodeId || !this.dragDirection) {
+      return;
+    }
+
+    const startNode = this.app.scene
+      .getNonDeletedElementsMap()
+      .get(this.dragStartNodeId);
+
+    if (!startNode || !isFlowchartNodeElement(startNode) || startNode.locked) {
+      this.cancelDragPreview();
+      return;
+    }
+
+    this.creator.createNodeAt(
+      startNode,
+      this.app.state,
+      this.dragDirection,
+      this.app.scene,
+      x,
+      y,
+    );
+    this.app.triggerRender(true);
+  };
+
+  cancelDragPreview = () => {
+    if (!this.dragStartNodeId) {
+      return;
+    }
+
+    this.creator.clear();
+    this.dragStartNodeId = null;
+    this.dragDirection = null;
+    this.app.triggerRender(true);
+  };
+
+  commitDragPreview = () => {
+    if (!this.dragStartNodeId) {
+      return;
+    }
+
+    const nodes = this.creator.pendingNodes ?? [];
+    const startNode = this.app.scene
+      .getNonDeletedElementsMap()
+      .get(this.dragStartNodeId);
+    const bindingArrow = nodes.find((node) => node.type === "arrow");
+
+    // The drag preview is created without touching the source node. Complete
+    // that one side of the relationship only when the pointer gesture lands.
+    if (
+      startNode &&
+      isFlowchartNodeElement(startNode) &&
+      bindingArrow &&
+      !startNode.boundElements?.some(({ id }) => id === bindingArrow.id)
+    ) {
+      this.app.mutateElement(startNode, {
+        boundElements: [
+          ...(startNode.boundElements ?? []),
+          { id: bindingArrow.id, type: "arrow" },
+        ],
+      });
+    }
+
+    this.creator.clear();
+    this.dragStartNodeId = null;
+    this.dragDirection = null;
+
+    if (nodes.length) {
+      this.app.insertNewElements(nodes);
+      const firstNode = nodes[0];
+      const element = this.app.scene
+        .getNonDeletedElementsMap()
+        .get(firstNode.id);
+      if (element) {
+        this.selectAndReveal(element);
+      }
+    }
+
+    this.captureUpdate();
   };
 
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
@@ -102,6 +210,8 @@ export class AppFlowchart {
     if (event.type === "keydown") {
       if (event.key === KEYS.ESCAPE && creator.isCreatingChart) {
         creator.clear();
+        this.dragStartNodeId = null;
+        this.dragDirection = null;
         return { type: "canceled" };
       }
 

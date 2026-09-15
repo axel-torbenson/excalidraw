@@ -1,11 +1,19 @@
 import { KEYS, reseed } from "@excalidraw/common";
 
 import { Excalidraw } from "@excalidraw/excalidraw";
+import {
+  addNewNodeAt,
+  isFlowchartNodeElement,
+  isNonDeletedElement,
+} from "@excalidraw/element";
 
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { UI, Keyboard, Pointer } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
+  act,
+  fireEvent,
   render,
+  screen,
   unmountComponent,
 } from "@excalidraw/excalidraw/tests/test-utils";
 
@@ -35,14 +43,140 @@ beforeEach(async () => {
 describe("flow chart creation", () => {
   beforeEach(() => {
     API.clearSelection();
-    const rectangle = API.createElement({
-      type: "rectangle",
+    const rectangle = UI.createElement("rectangle", {
       width: 200,
       height: 100,
+    }) as NonDeletedExcalidrawElement;
+
+    API.setSelectedElements([rectangle]);
+  });
+
+  it("keeps drag previews out of the scene until committed", () => {
+    const parent = h.elements[0];
+    if (
+      !parent ||
+      !isNonDeletedElement(parent) ||
+      !isFlowchartNodeElement(parent)
+    ) {
+      throw new Error("expected a non-deleted flowchart node");
+    }
+    const originalParent = {
+      ...parent,
+      boundElements: parent.boundElements
+        ? [...parent.boundElements]
+        : parent.boundElements,
+    };
+
+    let preview!: ReturnType<typeof addNewNodeAt>;
+    act(() => {
+      preview = addNewNodeAt(
+        parent,
+        h.app.state,
+        "right",
+        h.app.scene,
+        parent.x + parent.width + 80,
+        parent.y,
+      );
     });
 
-    API.setElements([rectangle]);
-    API.setSelectedElements([rectangle]);
+    expect(h.elements).toHaveLength(1);
+    expect(parent).toEqual(originalParent);
+    expect(
+      preview.nodes.filter((element) => element.type === "rectangle"),
+    ).toHaveLength(1);
+    expect(
+      preview.nodes.filter((element) => element.type === "arrow"),
+    ).toHaveLength(1);
+  });
+
+  it("commits a dragged handle as a bound node and supports undo", () => {
+    const parent = h.elements[0];
+    const handle = screen.getByTestId("flowchart-handle-right");
+
+    act(() => {
+      fireEvent.pointerDown(handle, {
+        button: 0,
+        pointerId: 1,
+        clientX: 220,
+        clientY: 50,
+      });
+    });
+    expect(h.elements).toHaveLength(1);
+
+    act(() => {
+      fireEvent.pointerMove(handle, {
+        pointerId: 1,
+        clientX: 500,
+        clientY: 80,
+      });
+      fireEvent.pointerUp(handle, {
+        pointerId: 1,
+        clientX: 500,
+        clientY: 80,
+      });
+    });
+
+    expect(h.elements).toHaveLength(3);
+    const child = h.elements.find(
+      (element) => element.type === "rectangle" && element.id !== parent.id,
+    );
+    const arrow = h.elements.find((element) => element.type === "arrow");
+    expect(child).toBeTruthy();
+    expect(arrow).toMatchObject({
+      startBinding: { elementId: parent.id },
+      endBinding: { elementId: child?.id },
+    });
+
+    Keyboard.undo();
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(1);
+    Keyboard.redo();
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(3);
+  });
+
+  it("cancels a dragged handle on pointercancel without changing the scene", () => {
+    const handle = screen.getByTestId("flowchart-handle-right");
+
+    act(() => {
+      fireEvent.pointerDown(handle, {
+        button: 0,
+        pointerId: 1,
+        clientX: 220,
+        clientY: 50,
+      });
+      fireEvent.pointerMove(handle, {
+        pointerId: 1,
+        clientX: 500,
+        clientY: 80,
+      });
+      fireEvent.pointerCancel(handle, {
+        pointerId: 1,
+        clientX: 500,
+        clientY: 80,
+      });
+    });
+
+    expect(h.elements).toHaveLength(1);
+  });
+
+  it("cancels a dragged handle with Escape", () => {
+    const handle = screen.getByTestId("flowchart-handle-right");
+
+    act(() => {
+      fireEvent.pointerDown(handle, {
+        button: 0,
+        pointerId: 1,
+        clientX: 220,
+        clientY: 50,
+      });
+      fireEvent.pointerMove(handle, {
+        pointerId: 1,
+        clientX: 500,
+        clientY: 80,
+      });
+      fireEvent.keyDown(handle, { key: KEYS.ESCAPE });
+    });
+
+    expect(h.elements).toHaveLength(1);
   });
 
   // multiple at once

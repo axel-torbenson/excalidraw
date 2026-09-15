@@ -269,6 +269,15 @@ const cloneFlowchartNode = (
   return node;
 };
 
+const cloneFlowchartNodeForBinding = (
+  element: NonDeleted<ExcalidrawFlowchartNodeElement>,
+): NonDeleted<ExcalidrawFlowchartNodeElement> => ({
+  ...element,
+  boundElements: element.boundElements
+    ? [...element.boundElements]
+    : element.boundElements,
+});
+
 export const addNewNodes = (
   startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
   appState: AppState,
@@ -307,13 +316,47 @@ export const addNewNodes = (
   return { nodes, crossStart };
 };
 
+/**
+ * Creates the one-node version of a flowchart preview used by drag handles.
+ *
+ * Unlike `addNewNodes`, this deliberately does not mutate the source node.
+ * The source binding is completed by the app only when the preview is
+ * committed, which keeps cancelled pointer gestures out of the scene/history.
+ */
+export const addNewNodeAt = (
+  startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  appState: AppState,
+  direction: LinkDirection,
+  scene: Scene,
+  x: number,
+  y: number,
+) => {
+  const nextNode = cloneFlowchartNode(startNode, x, y);
+  const bindingArrow = createBindingArrow(
+    startNode,
+    nextNode,
+    direction,
+    appState,
+    scene,
+    { mutateStart: false },
+  );
+
+  return { nodes: [nextNode, bindingArrow] };
+};
+
 const createBindingArrow = (
   startBindingElement: NonDeleted<ExcalidrawFlowchartNodeElement>,
   endBindingElement: NonDeleted<ExcalidrawFlowchartNodeElement>,
   direction: LinkDirection,
   appState: AppState,
   scene: Scene,
+  options: { mutateStart?: boolean } = {},
 ) => {
+  const bindingStartElement =
+    options.mutateStart === false
+      ? cloneFlowchartNodeForBinding(startBindingElement)
+      : startBindingElement;
+
   let startX: number;
   let startY: number;
 
@@ -387,7 +430,7 @@ const createBindingArrow = (
 
   bindBindingElement(
     bindingArrow,
-    startBindingElement,
+    bindingStartElement,
     "orbit",
     "start",
     scene,
@@ -396,8 +439,8 @@ const createBindingArrow = (
 
   const changedElements = new Map<string, OrderedExcalidrawElement>();
   changedElements.set(
-    startBindingElement.id,
-    startBindingElement as OrderedExcalidrawElement,
+    bindingStartElement.id,
+    bindingStartElement as OrderedExcalidrawElement,
   );
   changedElements.set(
     endBindingElement.id,
@@ -680,6 +723,36 @@ export class FlowChartCreator {
   private clusterCrossStart: number | null = null;
   pendingNodes: PendingExcalidrawElements | null = null;
 
+  private assignPendingNodesToFrame(
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    elementsMap: NonDeletedSceneElementsMap,
+  ) {
+    // add pending nodes to the same frame as the start node
+    // if every pending node is at least intersecting with the frame
+    if (!startNode.frameId) {
+      return;
+    }
+
+    const frame = elementsMap.get(startNode.frameId);
+
+    invariant(frame && isFrameElement(frame), "not an ExcalidrawFrameElement");
+
+    if (
+      frame &&
+      this.pendingNodes?.every(
+        (node) =>
+          elementsAreInFrameBounds([node], frame, elementsMap) ||
+          elementOverlapsWithFrame(node, frame, elementsMap),
+      )
+    ) {
+      this.pendingNodes = this.pendingNodes?.map((node) =>
+        mutateElement(node, elementsMap, {
+          frameId: startNode.frameId,
+        }),
+      ) as PendingExcalidrawElements;
+    }
+  }
+
   createNodes(
     startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
     appState: AppState,
@@ -709,31 +782,27 @@ export class FlowChartCreator {
     this.clusterCrossStart = crossStart;
     this.pendingNodes = nodes;
 
-    // add pending nodes to the same frame as the start node
-    // if every pending node is at least intersecting with the frame
-    if (startNode.frameId) {
-      const frame = elementsMap.get(startNode.frameId);
+    this.assignPendingNodesToFrame(startNode, elementsMap);
+  }
 
-      invariant(
-        frame && isFrameElement(frame),
-        "not an ExcalidrawFrameElement",
-      );
+  createNodeAt(
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    appState: AppState,
+    direction: LinkDirection,
+    scene: Scene,
+    x: number,
+    y: number,
+  ) {
+    const elementsMap = scene.getNonDeletedElementsMap();
+    const { nodes } = addNewNodeAt(startNode, appState, direction, scene, x, y);
 
-      if (
-        frame &&
-        this.pendingNodes.every(
-          (node) =>
-            elementsAreInFrameBounds([node], frame, elementsMap) ||
-            elementOverlapsWithFrame(node, frame, elementsMap),
-        )
-      ) {
-        this.pendingNodes = this.pendingNodes.map((node) =>
-          mutateElement(node, elementsMap, {
-            frameId: startNode.frameId,
-          }),
-        );
-      }
-    }
+    this.isCreatingChart = true;
+    this.direction = direction;
+    this.numberOfNodes = 1;
+    this.clusterCrossStart = null;
+    this.pendingNodes = nodes;
+
+    this.assignPendingNodesToFrame(startNode, elementsMap);
   }
 
   clear() {
