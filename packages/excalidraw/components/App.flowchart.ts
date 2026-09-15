@@ -12,6 +12,8 @@ import {
 
 import type {
   ExcalidrawElement,
+  ExcalidrawFlowchartNodeElement,
+  NonDeleted,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
@@ -43,6 +45,40 @@ export class AppFlowchart {
   get isCreatingChart() {
     return this.creator.isCreatingChart;
   }
+
+  /**
+   * Creates and commits a single connected node from the contextual add-step
+   * control. Unlike the keyboard flow, this is an explicit one-shot action,
+   * so there is no pending preview to leave behind.
+   */
+  addStep = (
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    direction: LinkDirection,
+  ) => {
+    this.creator.clear();
+    this.creator.createNodes(
+      startNode,
+      this.app.state,
+      direction,
+      this.app.scene,
+    );
+
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+
+    if (!nodes.length) {
+      return;
+    }
+
+    this.app.insertNewElements(nodes);
+
+    const nextNode = nodes.find(isFlowchartNodeElement);
+    if (nextNode) {
+      this.selectAndReveal(nextNode);
+    }
+
+    this.captureUpdate();
+  };
 
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {

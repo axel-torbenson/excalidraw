@@ -1,5 +1,7 @@
 import { KEYS, reseed } from "@excalidraw/common";
 
+import { isNonDeletedElement } from "@excalidraw/element";
+
 import { Excalidraw } from "@excalidraw/excalidraw";
 
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
@@ -9,7 +11,10 @@ import {
   unmountComponent,
 } from "@excalidraw/excalidraw/tests/test-utils";
 
-import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+import type {
+  ExcalidrawArrowElement,
+  NonDeletedExcalidrawElement,
+} from "@excalidraw/element/types";
 
 unmountComponent();
 
@@ -35,14 +40,88 @@ beforeEach(async () => {
 describe("flow chart creation", () => {
   beforeEach(() => {
     API.clearSelection();
-    const rectangle = API.createElement({
-      type: "rectangle",
+    const rectangle = UI.createElement("rectangle", {
       width: 200,
       height: 100,
     });
 
-    API.setElements([rectangle]);
+    UI.clickTool("selection");
+    if (!isNonDeletedElement(rectangle)) {
+      throw new Error("Expected the created rectangle to be non-deleted");
+    }
     API.setSelectedElements([rectangle]);
+  });
+
+  it("adds a connected step from the contextual action", () => {
+    expect(
+      document.querySelector('[data-testid="flowchart-add-step"]'),
+    ).not.toBeNull();
+
+    UI.clickOnTestId("flowchart-add-step");
+    expect(
+      document.querySelector('[role="group"][aria-label*="direction"]'),
+    ).not.toBeNull();
+
+    UI.clickOnTestId("flowchart-add-step-right");
+
+    expect(
+      h.elements.filter((element) => element.type === "rectangle"),
+    ).toHaveLength(2);
+    expect(
+      h.elements.filter((element) => element.type === "arrow"),
+    ).toHaveLength(1);
+
+    const parent = h.elements.find((element) => element.type === "rectangle")!;
+    const child = h.elements
+      .filter((element) => element.type === "rectangle")
+      .find((element) => element.id !== parent.id)!;
+    const arrow = h.elements.find(
+      (element): element is ExcalidrawArrowElement => element.type === "arrow",
+    )!;
+
+    expect(child.x).toBe(parent.x + parent.width + 100);
+    expect(child.y).toBe(parent.y);
+    expect(arrow.startBinding?.elementId).toBe(parent.id);
+    expect(arrow.endBinding?.elementId).toBe(child.id);
+    expect(h.state.selectedElementIds[child.id]).toBe(true);
+    expect(
+      document.querySelector('[data-testid="flowchart-add-step-right"]'),
+    ).toBeNull();
+
+    Keyboard.undo();
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(1);
+    Keyboard.redo();
+    expect(h.elements).toHaveLength(3);
+  });
+
+  it("dismisses the direction picker without creating a node", () => {
+    UI.clickOnTestId("flowchart-add-step");
+    Keyboard.keyPress(KEYS.ESCAPE);
+
+    expect(
+      document.querySelector('[role="group"][aria-label*="direction"]'),
+    ).toBeNull();
+    expect(h.elements).toHaveLength(1);
+    expect(API.getSelectedElements()).toHaveLength(1);
+    expect(h.state.selectedElementIds[h.elements[0].id]).toBe(true);
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-testid="flowchart-add-step"]'),
+    );
+  });
+
+  it("keeps the contextual action hidden for locked nodes", () => {
+    const lockedRectangle = API.createElement({
+      type: "rectangle",
+      width: 200,
+      height: 100,
+      locked: true,
+    });
+    API.setElements([lockedRectangle]);
+    API.setSelectedElements([lockedRectangle]);
+
+    expect(
+      document.querySelector('[data-testid="flowchart-add-step"]'),
+    ).toBeNull();
   });
 
   // multiple at once
