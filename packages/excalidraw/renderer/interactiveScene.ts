@@ -31,6 +31,8 @@ import {
   getOmitSidesForEditorInterface,
   getTransformHandles,
   getTransformHandlesFromCoords,
+  getFlowchartHandles,
+  FLOWCHART_HANDLE_SIZE,
   hasBoundingBox,
   hitElementItself,
   isArrowElement,
@@ -1460,6 +1462,53 @@ const renderTransformHandles = (
   });
 };
 
+const renderFlowchartHandles = (
+  context: CanvasRenderingContext2D,
+  appState: InteractiveCanvasAppState,
+  selectionColor: string,
+  element: NonDeletedExcalidrawElement,
+) => {
+  if (element.type !== "rectangle" && element.type !== "diamond") {
+    return;
+  }
+
+  const radius = FLOWCHART_HANDLE_SIZE / 2 / appState.zoom.value;
+  const chevronSize = 3 / appState.zoom.value;
+  const handles = getFlowchartHandles(element, appState.zoom.value);
+  const directions = {
+    up: [0, -1],
+    right: [1, 0],
+    down: [0, 1],
+    left: [-1, 0],
+  } as const;
+
+  handles.forEach(({ direction, x, y }) => {
+    const [dx, dy] = directions[direction];
+
+    context.save();
+    context.fillStyle = getThemedColor("#fff", appState.theme);
+    context.strokeStyle = selectionColor;
+    context.lineWidth = 1 / appState.zoom.value;
+    context.beginPath();
+    context.arc(x, y, radius, 0, 2 * Math.PI);
+    context.fill();
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(
+      x - dy * chevronSize - dx * chevronSize,
+      y + dx * chevronSize - dy * chevronSize,
+    );
+    context.lineTo(x + dx * chevronSize, y + dy * chevronSize);
+    context.lineTo(
+      x + dy * chevronSize - dx * chevronSize,
+      y - dx * chevronSize - dy * chevronSize,
+    );
+    context.stroke();
+    context.restore();
+  });
+};
+
 const renderCropHandles = (
   context: CanvasRenderingContext2D,
   renderConfig: InteractiveCanvasRenderConfig,
@@ -2008,6 +2057,23 @@ const _renderInteractiveScene = ({
           appState,
           transformHandles,
           selectedElements[0].angle,
+        );
+      }
+
+      if (
+        !appState.viewModeEnabled &&
+        !app.flowchart.isCreatingChart &&
+        !appState.editingTextElement &&
+        appState.activeTool.type === "selection" &&
+        showBoundingBox &&
+        !selectedElements[0].locked &&
+        selectedElements[0].angle === 0
+      ) {
+        renderFlowchartHandles(
+          context,
+          appState,
+          renderConfig.selectionColor,
+          selectedElements[0],
         );
       }
 

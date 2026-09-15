@@ -1,15 +1,29 @@
 import { KEYS, reseed } from "@excalidraw/common";
+import {
+  FLOWCHART_HANDLE_OFFSET,
+  getFlowchartHandlePosition,
+  getTransformHandlesFromCoords,
+} from "@excalidraw/element";
 
-import { Excalidraw } from "@excalidraw/excalidraw";
+import {
+  Excalidraw,
+  sceneCoordsToViewportCoords,
+} from "@excalidraw/excalidraw";
 
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { UI, Keyboard, Pointer } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
   render,
   unmountComponent,
+  fireEvent,
+  GlobalTestState,
 } from "@excalidraw/excalidraw/tests/test-utils";
 
-import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+import type {
+  ExcalidrawTextElement,
+  NonDeleted,
+  NonDeletedExcalidrawElement,
+} from "@excalidraw/element/types";
 
 unmountComponent();
 
@@ -155,6 +169,236 @@ describe("flow chart creation", () => {
 
     expect(firstChildNode.x).toBe(secondChildNode.x);
     expect(secondChildNode.x).toBe(thirdChildNode.x);
+  });
+
+  it("creates a connected styled node by dragging a directional handle", () => {
+    const source = h.elements[0];
+    const handleX = source.x + source.width + FLOWCHART_HANDLE_OFFSET;
+    const handleY = source.y + source.height / 2;
+
+    mouse.downAt(handleX, handleY);
+    expect(h.elements).toHaveLength(1);
+    expect(h.app.flowchart.pendingNodes).toHaveLength(2);
+
+    mouse.moveTo(500, handleY);
+    const preview = h.app.flowchart.pendingNodes?.find(
+      (element) => element.type === "rectangle",
+    );
+    expect(preview?.x).toBe(400);
+    expect(preview?.y).toBe(source.y);
+
+    mouse.up();
+
+    const child = h.elements.find(
+      (element) => element.type === "rectangle" && element.id !== source.id,
+    );
+    const arrow = h.elements.find((element) => element.type === "arrow");
+    expect(child).toMatchObject({
+      x: preview?.x,
+      y: preview?.y,
+      width: source.width,
+      height: source.height,
+      backgroundColor: source.backgroundColor,
+      strokeColor: source.strokeColor,
+      strokeWidth: source.strokeWidth,
+    });
+    expect(arrow).toMatchObject({
+      startBinding: { elementId: source.id },
+      endBinding: { elementId: child?.id },
+    });
+    expect(h.app.flowchart.pendingNodes).toBeNull();
+
+    expect(API.getUndoStack()).toHaveLength(1);
+    Keyboard.undo();
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(0);
+    Keyboard.redo();
+    expect(h.elements.filter((element) => !element.isDeleted)).toHaveLength(3);
+  });
+
+  it("supports dragging handles from a diamond", () => {
+    const diamond = API.createElement({
+      type: "diamond",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 100,
+    });
+    API.setElements([diamond]);
+    API.setSelectedElements([diamond]);
+
+    mouse.downAt(
+      diamond.x + diamond.width / 2,
+      diamond.y - FLOWCHART_HANDLE_OFFSET,
+    );
+    mouse.upAt(diamond.x + diamond.width / 2, diamond.y - 250);
+
+    expect(
+      h.elements.filter((element) => element.type === "diamond"),
+    ).toHaveLength(2);
+    expect(
+      h.elements.filter((element) => element.type === "arrow"),
+    ).toHaveLength(1);
+  });
+
+  it("leaves the rotation handle usable above flowchart handles", () => {
+    const source = h.elements[0];
+    const transformHandles = getTransformHandlesFromCoords(
+      [
+        source.x,
+        source.y,
+        source.x + source.width,
+        source.y + source.height,
+        source.x + source.width / 2,
+        source.y + source.height / 2,
+      ],
+      source.angle,
+      h.state.zoom,
+      "mouse",
+    );
+    const rotationHandle = transformHandles.rotation;
+    expect(rotationHandle).toBeDefined();
+    const rotationX = rotationHandle![0] + rotationHandle![2] / 2;
+    const rotationY = rotationHandle![1] + rotationHandle![3] / 2;
+    const upFlowchartHandle = getFlowchartHandlePosition(
+      source,
+      "up",
+      h.state.zoom.value,
+    );
+
+    expect(upFlowchartHandle.y + 10).toBeLessThan(rotationY - 4);
+
+    mouse.downAt(rotationX, rotationY);
+    mouse.moveTo(rotationX + 20, rotationY + 20);
+    mouse.up();
+    expect(h.elements[0].angle).not.toBe(0);
+  });
+
+  it("hides and disables handles while text editing is active", () => {
+    const source = h.elements[0] as NonDeletedExcalidrawElement;
+    const text = API.createElement({
+      type: "text",
+      text: "editing",
+      width: 100,
+      height: 20,
+    }) as NonDeleted<ExcalidrawTextElement>;
+    API.setElements([source, text]);
+    API.setSelectedElements([source]);
+    API.setAppState({ editingTextElement: text });
+
+    mouse.downAt(
+      source.x + source.width + FLOWCHART_HANDLE_OFFSET,
+      source.y + source.height / 2,
+    );
+
+    expect(h.app.flowchart.pendingNodes).toBeNull();
+    expect(h.elements).toHaveLength(2);
+  });
+
+  it("cancels a handle drag without inserting or capturing a change", () => {
+    const source = h.elements[0];
+    mouse.downAt(
+      source.x + source.width + FLOWCHART_HANDLE_OFFSET,
+      source.y + source.height / 2,
+    );
+    expect(h.app.flowchart.pendingNodes).toHaveLength(2);
+
+    Keyboard.keyPress(KEYS.ESCAPE);
+    mouse.up();
+
+    expect(h.elements).toHaveLength(1);
+    expect(h.app.flowchart.pendingNodes).toBeNull();
+    Keyboard.undo();
+    expect(h.elements).toHaveLength(1);
+  });
+
+  it("does not commit a pointer drag on modifier key release", () => {
+    const source = h.elements[0];
+    mouse.downAt(
+      source.x + source.width + FLOWCHART_HANDLE_OFFSET,
+      source.y + source.height / 2,
+    );
+    expect(h.app.flowchart.pendingNodes).toHaveLength(2);
+
+    Keyboard.keyDown(KEYS.CTRL_OR_CMD);
+    Keyboard.keyUp(KEYS.CTRL_OR_CMD);
+
+    expect(h.elements).toHaveLength(1);
+    expect(h.app.flowchart.pendingNodes).toHaveLength(2);
+    const pendingBeforeArrow = h.app.flowchart.pendingNodes?.[0];
+    Keyboard.withModifierKeys({ ctrl: true }, () => {
+      Keyboard.keyPress(KEYS.ARROW_DOWN);
+    });
+    expect(h.app.flowchart.pendingNodes?.[0]).toMatchObject({
+      x: pendingBeforeArrow?.x,
+      y: pendingBeforeArrow?.y,
+    });
+    mouse.upAt(500, source.y + source.height / 2);
+    expect(h.elements).toHaveLength(3);
+    expect(
+      h.elements.find(
+        (element) => element.type === "rectangle" && element.id !== source.id,
+      )?.x,
+    ).toBe(400);
+  });
+
+  it("swallows movement after Escape until the pointer is released", () => {
+    const source = h.elements[0];
+    mouse.downAt(
+      source.x + source.width + FLOWCHART_HANDLE_OFFSET,
+      source.y + source.height / 2,
+    );
+    Keyboard.keyPress(KEYS.ESCAPE);
+
+    expect(h.app.flowchart.pendingNodes).toBeNull();
+    mouse.moveTo(500, source.y + source.height / 2);
+    expect(h.elements).toHaveLength(1);
+    mouse.up();
+    expect(h.elements).toHaveLength(1);
+  });
+
+  it("cancels a handle drag on pointercancel", () => {
+    const source = h.elements[0];
+    mouse.downAt(
+      source.x + source.width + FLOWCHART_HANDLE_OFFSET,
+      source.y + source.height / 2,
+    );
+    fireEvent.pointerCancel(GlobalTestState.interactiveCanvas, {
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+
+    expect(h.elements).toHaveLength(1);
+    expect(h.app.flowchart.pendingNodes).toBeNull();
+  });
+
+  it("hits handles using zoom and scroll-adjusted viewport coordinates", () => {
+    const source = h.elements[0];
+    API.setAppState({
+      zoom: { value: 0.5 as typeof h.state.zoom.value },
+      scrollX: -120,
+      scrollY: 80,
+    });
+
+    const handle = getFlowchartHandlePosition(
+      source,
+      "right",
+      h.state.zoom.value,
+    );
+    expect(handle.x).toBe(
+      source.x + source.width + FLOWCHART_HANDLE_OFFSET / h.state.zoom.value,
+    );
+    const viewportHandle = sceneCoordsToViewportCoords(
+      {
+        sceneX: handle.x,
+        sceneY: handle.y,
+      },
+      h.state,
+    );
+
+    mouse.downAt(viewportHandle.x, viewportHandle.y);
+    expect(h.app.flowchart.pendingNodes).toHaveLength(2);
+    mouse.upAt(viewportHandle.x + 100, viewportHandle.y);
+    expect(h.elements).toHaveLength(3);
   });
 
   // regression for #8518: additional siblings must not overlap existing ones

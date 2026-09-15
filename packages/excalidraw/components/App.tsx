@@ -7867,6 +7867,10 @@ class App extends React.Component<AppProps, AppState> {
       y: scenePointerY,
     };
 
+    if (this.flowchart.handlePointerMove(scenePointer)) {
+      return;
+    }
+
     this.updateMultiTouchGesture(event);
 
     if (
@@ -7895,6 +7899,11 @@ class App extends React.Component<AppProps, AppState> {
       } else {
         this.cursor.applyForTool();
       }
+    }
+
+    if (this.flowchart.getHandleDirection(scenePointer)) {
+      this.cursor.set(CURSOR_TYPE.POINTER);
+      return;
     }
 
     this.maybeUpdateFrameToHighlightOnPointerMove(
@@ -8830,9 +8839,18 @@ class App extends React.Component<AppProps, AppState> {
       return;
     }
 
+    const isFlowchartPointerDown = this.flowchart.handlePointerDown(
+      event,
+      scenePointer,
+    );
+    pointerDownState.flowchart.isDragging = isFlowchartPointerDown;
+
     this.clearSelectionIfNotUsingSelection();
 
-    if (this.handleSelectionOnPointerDown(event, pointerDownState)) {
+    if (
+      !isFlowchartPointerDown &&
+      this.handleSelectionOnPointerDown(event, pointerDownState)
+    ) {
       return;
     }
 
@@ -9014,6 +9032,7 @@ class App extends React.Component<AppProps, AppState> {
       // `handleCanvasPanUsingWheelOrSpaceDrag` swallows the pointer-down.
       this.bucketFill.handlePointerDown(scenePointer);
     } else if (
+      !isFlowchartPointerDown &&
       this.state.activeTool.type !== "eraser" &&
       this.state.activeTool.type !== "hand" &&
       this.state.activeTool.type !== "image"
@@ -9054,6 +9073,9 @@ class App extends React.Component<AppProps, AppState> {
     if (!this.state.viewModeEnabled || this.isActiveToolPointerCapturing()) {
       this.ownerWindow.addEventListener(EVENT.POINTER_MOVE, onPointerMove);
       this.ownerWindow.addEventListener(EVENT.POINTER_UP, onPointerUp);
+      if (isFlowchartPointerDown) {
+        this.ownerWindow.addEventListener(EVENT.POINTER_CANCEL, onPointerUp);
+      }
       this.ownerWindow.addEventListener(EVENT.KEYDOWN, onKeyDown);
       this.ownerWindow.addEventListener(EVENT.KEYUP, onKeyUp);
       pointerDownState.eventListeners.onMove = onPointerMove;
@@ -9434,6 +9456,9 @@ class App extends React.Component<AppProps, AppState> {
         offset: null,
         origin: { ...origin },
         blockDragging: false,
+      },
+      flowchart: {
+        isDragging: false,
       },
       eventListeners: {
         onMove: null,
@@ -10752,6 +10777,9 @@ class App extends React.Component<AppProps, AppState> {
     pointerDownState: PointerDownState,
   ): (event: KeyboardEvent) => void {
     return withBatchedUpdates((event: KeyboardEvent) => {
+      if (pointerDownState.flowchart.isDragging) {
+        return;
+      }
       if (this.maybeHandleResize(pointerDownState, event)) {
         return;
       }
@@ -10763,6 +10791,9 @@ class App extends React.Component<AppProps, AppState> {
     pointerDownState: PointerDownState,
   ): (event: KeyboardEvent) => void {
     return withBatchedUpdates((event: KeyboardEvent) => {
+      if (pointerDownState.flowchart.isDragging) {
+        return;
+      }
       // Prevents focus from escaping excalidraw tab
       event.key === KEYS.ALT && event.preventDefault();
       if (this.maybeHandleResize(pointerDownState, event)) {
@@ -10780,6 +10811,15 @@ class App extends React.Component<AppProps, AppState> {
         return;
       }
       const pointerCoords = viewportCoordsToSceneCoords(event, this.state);
+
+      if (pointerDownState.flowchart.isDragging) {
+        this.flowchart.handlePointerMove(pointerCoords);
+        return;
+      }
+
+      if (this.flowchart.handlePointerMove(pointerCoords)) {
+        return;
+      }
 
       if (this.state.activeLockedId) {
         this.setState({
@@ -11735,6 +11775,66 @@ class App extends React.Component<AppProps, AppState> {
       } else {
         this.bucketFill.cancel();
       }
+
+      if (pointerDownState.flowchart.isDragging) {
+        const flowchartPointer =
+          childEvent.type === "pointerup"
+            ? viewportCoordsToSceneCoords(childEvent, this.state)
+            : undefined;
+        this.flowchart.handlePointerUp(childEvent, flowchartPointer);
+        pointerDownState.flowchart.isDragging = false;
+
+        this.activeResizeHandle = null;
+        this.setState({
+          isResizing: false,
+          isRotating: false,
+          isCropping: false,
+          resizingElement: null,
+          selectionElement: null,
+          frameToHighlight: null,
+          elementsToHighlight: null,
+          cursorButton: "up",
+          snapLines: [],
+          originSnapOffset: null,
+          selectedElementsAreBeingDragged: false,
+          bindMode: "orbit",
+        });
+        this.lassoTrail.endPath();
+        this.previousPointerMoveCoords = null;
+        SnapCache.setReferenceSnapPoints(null);
+        SnapCache.setVisibleGaps(null);
+        this.savePointer(childEvent.clientX, childEvent.clientY, "up");
+
+        this.missingPointerEventCleanupEmitter.clear();
+        this.ownerWindow.removeEventListener(
+          EVENT.POINTER_MOVE,
+          pointerDownState.eventListeners.onMove!,
+        );
+        this.ownerWindow.removeEventListener(
+          EVENT.POINTER_UP,
+          pointerDownState.eventListeners.onUp!,
+        );
+        this.ownerWindow.removeEventListener(
+          EVENT.POINTER_CANCEL,
+          pointerDownState.eventListeners.onUp!,
+        );
+        this.ownerWindow.removeEventListener(
+          EVENT.KEYDOWN,
+          pointerDownState.eventListeners.onKeyDown!,
+        );
+        this.ownerWindow.removeEventListener(
+          EVENT.KEYUP,
+          pointerDownState.eventListeners.onKeyUp!,
+        );
+        this.props?.onPointerUp?.(this.state.activeTool, pointerDownState);
+        this.onPointerUpEmitter.trigger(
+          this.state.activeTool,
+          pointerDownState,
+          childEvent,
+        );
+        return;
+      }
+
       const {
         newElement,
         resizingElement,

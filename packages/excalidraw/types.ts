@@ -1271,6 +1271,12 @@ export type PointerDownState = Readonly<{
     // - after lasso selection until the next pointer down
     blockDragging: boolean;
   };
+  // Pointer-driven flowchart creation owns the full pointer lifecycle. This
+  // marker lets pointerup skip ordinary selection/history teardown even after
+  // the gesture was canceled with Escape.
+  flowchart: {
+    isDragging: boolean;
+  };
   // We need to have these in the state so that we can unsubscribe them
   eventListeners: {
     // It's defined on the initial pointer down event

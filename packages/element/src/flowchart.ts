@@ -57,6 +57,87 @@ export type LinkDirection = "up" | "right" | "down" | "left";
 const VERTICAL_OFFSET = 100;
 const HORIZONTAL_OFFSET = 100;
 
+/**
+ * Flowchart handles live just outside the four cardinal sides of a node.
+ * Unlike transform handles, their size is kept constant in viewport pixels by
+ * the renderer, so these values are in scene coordinates and divided by zoom
+ * at render/hit-test time.
+ */
+export const FLOWCHART_HANDLE_SIZE = 12;
+export const FLOWCHART_HANDLE_OFFSET = 40;
+const FLOWCHART_HANDLE_HIT_RADIUS = 10;
+
+export type FlowchartHandle = {
+  direction: LinkDirection;
+  x: number;
+  y: number;
+};
+
+type FlowchartHandleElement = Pick<
+  ExcalidrawFlowchartNodeElement,
+  "x" | "y" | "width" | "height"
+>;
+
+export const getFlowchartHandlePosition = (
+  element: FlowchartHandleElement,
+  direction: LinkDirection,
+  zoom = 1,
+): FlowchartHandle => {
+  const offset = FLOWCHART_HANDLE_OFFSET / zoom;
+
+  switch (direction) {
+    case "up":
+      return {
+        direction,
+        x: element.x + element.width / 2,
+        y: element.y - offset,
+      };
+    case "right":
+      return {
+        direction,
+        x: element.x + element.width + offset,
+        y: element.y + element.height / 2,
+      };
+    case "down":
+      return {
+        direction,
+        x: element.x + element.width / 2,
+        y: element.y + element.height + offset,
+      };
+    case "left":
+      return {
+        direction,
+        x: element.x - offset,
+        y: element.y + element.height / 2,
+      };
+  }
+};
+
+export const getFlowchartHandles = (
+  element: FlowchartHandleElement,
+  zoom = 1,
+): FlowchartHandle[] =>
+  (["up", "right", "down", "left"] as LinkDirection[]).map((direction) =>
+    getFlowchartHandlePosition(element, direction, zoom),
+  );
+
+export const getFlowchartHandleAtPosition = (
+  element: FlowchartHandleElement,
+  point: { x: number; y: number },
+  zoom: number,
+): LinkDirection | null => {
+  const radius = FLOWCHART_HANDLE_HIT_RADIUS / zoom;
+  const radiusSquared = radius * radius;
+
+  return (
+    getFlowchartHandles(element, zoom).find((handle) => {
+      const dx = point.x - handle.x;
+      const dy = point.y - handle.y;
+      return dx * dx + dy * dy <= radiusSquared;
+    })?.direction ?? null
+  );
+};
+
 type Interval = { start: number; end: number };
 
 const mergeIntervals = (intervals: Interval[]): Interval[] => {
@@ -305,6 +386,56 @@ export const addNewNodes = (
   }
 
   return { nodes, crossStart };
+};
+
+/**
+ * Creates the preview/committed pair used by the pointer-driven flowchart
+ * affordance. The primary axis is constrained to the requested direction so
+ * the generated elbow arrow remains orthogonal to the source node, while the
+ * cross axis follows the pointer.
+ */
+export const addNewNodeAtPoint = (
+  startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  appState: AppState,
+  direction: LinkDirection,
+  scene: Scene,
+  point: { x: number; y: number },
+) => {
+  const x =
+    direction === "right"
+      ? Math.max(
+          point.x - startNode.width / 2,
+          startNode.x + startNode.width + HORIZONTAL_OFFSET,
+        )
+      : direction === "left"
+      ? Math.min(
+          point.x - startNode.width / 2,
+          startNode.x - HORIZONTAL_OFFSET - startNode.width,
+        )
+      : point.x - startNode.width / 2;
+  const y =
+    direction === "down"
+      ? Math.max(
+          point.y - startNode.height / 2,
+          startNode.y + startNode.height + VERTICAL_OFFSET,
+        )
+      : direction === "up"
+      ? Math.min(
+          point.y - startNode.height / 2,
+          startNode.y - VERTICAL_OFFSET - startNode.height,
+        )
+      : point.y - startNode.height / 2;
+
+  const nextNode = cloneFlowchartNode(startNode, x, y);
+  const bindingArrow = createBindingArrow(
+    startNode,
+    nextNode,
+    direction,
+    appState,
+    scene,
+  );
+
+  return { nodes: [nextNode, bindingArrow] };
 };
 
 const createBindingArrow = (
@@ -712,6 +843,53 @@ export class FlowChartCreator {
     // add pending nodes to the same frame as the start node
     // if every pending node is at least intersecting with the frame
     if (startNode.frameId) {
+      const frame = elementsMap.get(startNode.frameId);
+
+      invariant(
+        frame && isFrameElement(frame),
+        "not an ExcalidrawFrameElement",
+      );
+
+      if (
+        frame &&
+        this.pendingNodes.every(
+          (node) =>
+            elementsAreInFrameBounds([node], frame, elementsMap) ||
+            elementOverlapsWithFrame(node, frame, elementsMap),
+        )
+      ) {
+        this.pendingNodes = this.pendingNodes.map((node) =>
+          mutateElement(node, elementsMap, {
+            frameId: startNode.frameId,
+          }),
+        );
+      }
+    }
+  }
+
+  createNodeAtPoint(
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    appState: AppState,
+    direction: LinkDirection,
+    scene: Scene,
+    point: { x: number; y: number },
+  ) {
+    this.isCreatingChart = true;
+    this.numberOfNodes = 1;
+    this.direction = direction;
+    this.clusterCrossStart = null;
+    this.pendingNodes = addNewNodeAtPoint(
+      startNode,
+      appState,
+      direction,
+      scene,
+      point,
+    ).nodes;
+
+    // Match keyboard-created nodes: preserve the source frame only while the
+    // entire pending pair remains inside (or overlaps) that frame.
+    if (startNode.frameId) {
+      const elementsMap = scene.getNonDeletedElementsMap();
       const frame = elementsMap.get(startNode.frameId);
 
       invariant(
