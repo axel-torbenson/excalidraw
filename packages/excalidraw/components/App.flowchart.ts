@@ -12,6 +12,8 @@ import {
 
 import type {
   ExcalidrawElement,
+  ExcalidrawFlowchartNodeElement,
+  NonDeleted,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
@@ -43,6 +45,38 @@ export class AppFlowchart {
   get isCreatingChart() {
     return this.creator.isCreatingChart;
   }
+
+  /**
+   * Creates one connected node immediately. This is used by the directional
+   * controls rendered around a selected flowchart node; keyboard creation
+   * continues to use the creator's pending-cluster workflow below.
+   */
+  createNode = (
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    direction: LinkDirection,
+  ) => {
+    this.creator.createNodes(
+      startNode,
+      this.app.state,
+      direction,
+      this.app.scene,
+    );
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+
+    if (!nodes.length) {
+      return;
+    }
+
+    this.app.insertNewElements(nodes);
+
+    const firstNode = nodes.find(isFlowchartNodeElement);
+    if (firstNode) {
+      this.selectAndReveal(firstNode);
+    }
+
+    this.captureUpdate();
+  };
 
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {

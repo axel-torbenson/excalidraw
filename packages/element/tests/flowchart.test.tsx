@@ -1,5 +1,6 @@
 import { KEYS, reseed } from "@excalidraw/common";
 
+import { isArrowElement } from "@excalidraw/element";
 import { Excalidraw } from "@excalidraw/excalidraw";
 
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
@@ -155,6 +156,109 @@ describe("flow chart creation", () => {
 
     expect(firstChildNode.x).toBe(secondChildNode.x);
     expect(secondChildNode.x).toBe(thirdChildNode.x);
+  });
+
+  it("creates and connects a node with the directional controls", () => {
+    const initialNode = h.elements[0];
+
+    expect(
+      document.querySelectorAll('[data-testid^="flowchart-create-"]'),
+    ).toHaveLength(4);
+    const controls = (direction: string) =>
+      document.querySelector<HTMLButtonElement>(
+        `[data-testid="flowchart-create-${direction}"]`,
+      )!;
+    const up = controls("up");
+    const right = controls("right");
+    const down = controls("down");
+    const left = controls("left");
+
+    // Each control is centered on its corresponding side, then offset away
+    // from the node so the hit target never overlaps the node.
+    expect(up.style.left).toBe("0px");
+    expect(right.style.top).toBe("0px");
+    expect(down.style.left).toBe("0px");
+    expect(left.style.top).toBe("0px");
+    expect(Number.parseFloat(up.style.top)).toBeLessThan(0);
+    expect(Number.parseFloat(right.style.left)).toBeGreaterThan(0);
+    expect(Number.parseFloat(down.style.top)).toBeGreaterThan(0);
+    expect(Number.parseFloat(left.style.left)).toBeLessThan(0);
+
+    UI.clickOnTestId("flowchart-create-right");
+
+    const childNode = h.elements.find(
+      (element) =>
+        element.type === "rectangle" && element.id !== initialNode.id,
+    );
+    const arrow = h.elements.find(isArrowElement);
+
+    expect(childNode).toBeTruthy();
+    expect(childNode?.x).toBe(initialNode.x + initialNode.width + 100);
+    expect(childNode?.y).toBe(initialNode.y);
+    expect(arrow?.startBinding?.elementId).toBe(initialNode.id);
+    expect(arrow?.endBinding?.elementId).toBe(childNode?.id);
+    expect(h.state.selectedElementIds[childNode!.id]).toBe(true);
+  });
+
+  it("undoes and redoes directional creation without removing the parent", () => {
+    API.clearSelection();
+    API.setElements([]);
+
+    const parent = UI.createElement("rectangle", {
+      width: 200,
+      height: 100,
+    });
+    UI.clickOnTestId("flowchart-create-right");
+
+    const liveElements = () =>
+      h.elements.filter((element) => !element.isDeleted);
+    expect(liveElements()).toHaveLength(3);
+    expect(liveElements().some((element) => element.id === parent.id)).toBe(
+      true,
+    );
+
+    Keyboard.undo();
+
+    expect(liveElements()).toHaveLength(1);
+    expect(liveElements()[0].id).toBe(parent.id);
+
+    Keyboard.redo();
+
+    expect(liveElements()).toHaveLength(3);
+    expect(liveElements().some((element) => element.id === parent.id)).toBe(
+      true,
+    );
+  });
+
+  it("does not show directional controls for locked nodes", () => {
+    API.updateElement(h.elements[0], { locked: true });
+
+    expect(
+      document.querySelectorAll('[data-testid^="flowchart-create-"]'),
+    ).toHaveLength(0);
+  });
+
+  it("supports directional controls on diamonds", () => {
+    API.clearSelection();
+    const diamond = API.createElement({
+      type: "diamond",
+      width: 120,
+      height: 80,
+    });
+
+    API.setElements([diamond]);
+    API.setSelectedElements([diamond]);
+
+    UI.clickOnTestId("flowchart-create-down");
+
+    expect(
+      h.elements.filter(
+        (element) => element.type === "diamond" && element.id !== diamond.id,
+      ),
+    ).toHaveLength(1);
+    expect(
+      h.elements.filter((element) => element.type === "arrow"),
+    ).toHaveLength(1);
   });
 
   // regression for #8518: additional siblings must not overlap existing ones

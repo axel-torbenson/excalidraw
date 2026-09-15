@@ -239,6 +239,7 @@ import {
   isLineElement,
   isSimpleArrow,
   StoreDelta,
+  isFlowchartNodeElement,
   type ApplyToOptions,
   positionElementsOnGrid,
   calculateFixedPointForNonElbowArrowBinding,
@@ -465,6 +466,7 @@ import { StaticCanvas, InteractiveCanvas } from "./canvases";
 import NewElementCanvas from "./canvases/NewElementCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
 import { CursorHint, CursorHints } from "./CursorHint";
+import { FlowchartControls } from "./FlowchartControls";
 import { MagicIcon, copyIcon, fullscreenIcon } from "./icons";
 import { AppStateObserver, type OnStateChange } from "./AppStateObserver";
 
@@ -2519,6 +2521,28 @@ class App extends React.Component<AppProps, AppState> {
                                 updateEmbedValidationStatus={
                                   this.updateEmbedValidationStatus
                                 }
+                              />
+                            )}
+                          {this.isDefaultUIEnabled() &&
+                            this.state.activeTool.type === "selection" &&
+                            selectedElements.length === 1 &&
+                            !this.state.contextMenu &&
+                            !this.state.openMenu &&
+                            !this.state.newElement &&
+                            !this.flowchart.isCreatingChart &&
+                            !this.state.editingTextElement &&
+                            !this.state.selectionElement &&
+                            !this.state.resizingElement &&
+                            !this.state.isRotating &&
+                            isFlowchartNodeElement(firstSelectedElement) &&
+                            !firstSelectedElement.locked &&
+                            (firstSelectedElement.type === "rectangle" ||
+                              firstSelectedElement.type === "diamond") && (
+                              <FlowchartControls
+                                app={this}
+                                appState={this.state}
+                                element={firstSelectedElement}
+                                elementsMap={renderableElementsMap}
                               />
                             )}
                           {this.isDefaultUIEnabled() &&
