@@ -708,7 +708,38 @@ export class FlowChartCreator {
     this.direction = direction;
     this.clusterCrossStart = crossStart;
     this.pendingNodes = nodes;
+    this.applyFrameToPendingNodes(startNode, elementsMap);
+  }
 
+  createNodeAtPosition(
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    appState: AppState,
+    direction: LinkDirection,
+    scene: Scene,
+    position: { x: number; y: number },
+  ) {
+    const elementsMap = scene.getNonDeletedElementsMap();
+    const nextNode = cloneFlowchartNode(startNode, position.x, position.y);
+    const bindingArrow = createBindingArrow(
+      startNode,
+      nextNode,
+      direction,
+      appState,
+      scene,
+    );
+
+    this.isCreatingChart = true;
+    this.direction = direction;
+    this.numberOfNodes = 1;
+    this.clusterCrossStart = null;
+    this.pendingNodes = [nextNode, bindingArrow];
+    this.applyFrameToPendingNodes(startNode, elementsMap);
+  }
+
+  private applyFrameToPendingNodes(
+    startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    elementsMap: NonDeletedSceneElementsMap,
+  ) {
     // add pending nodes to the same frame as the start node
     // if every pending node is at least intersecting with the frame
     if (startNode.frameId) {
@@ -721,7 +752,7 @@ export class FlowChartCreator {
 
       if (
         frame &&
-        this.pendingNodes.every(
+        this.pendingNodes?.every(
           (node) =>
             elementsAreInFrameBounds([node], frame, elementsMap) ||
             elementOverlapsWithFrame(node, frame, elementsMap),
