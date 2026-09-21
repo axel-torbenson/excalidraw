@@ -1,11 +1,14 @@
 import { KEYS, reseed } from "@excalidraw/common";
 
 import { Excalidraw } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { UI, Keyboard, Pointer } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
+  fireEvent,
   render,
+  screen,
   unmountComponent,
 } from "@excalidraw/excalidraw/tests/test-utils";
 
@@ -155,6 +158,137 @@ describe("flow chart creation", () => {
 
     expect(firstChildNode.x).toBe(secondChildNode.x);
     expect(secondChildNode.x).toBe(thirdChildNode.x);
+  });
+
+  it("creates a styled bound node from a directional drag and undoes in one step", () => {
+    const source = API.createElement({
+      type: "rectangle",
+      width: 200,
+      height: 100,
+      strokeColor: "#123456",
+      backgroundColor: "#fedcba",
+      strokeWidth: 3,
+      opacity: 72,
+    });
+    API.setElements([source]);
+    API.updateScene({
+      elements: [source],
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    API.setSelectedElements([source]);
+
+    const handle = screen.getByRole("button", {
+      name: "Create flowchart node right",
+    });
+    fireEvent.pointerDown(handle, {
+      button: 0,
+      pointerId: 1,
+      clientX: 214,
+      clientY: 50,
+    });
+    fireEvent.pointerMove(handle, {
+      pointerId: 1,
+      clientX: 520,
+      clientY: 180,
+    });
+    fireEvent.pointerUp(handle, {
+      pointerId: 1,
+      clientX: 520,
+      clientY: 180,
+    });
+
+    expect(h.elements).toHaveLength(3);
+    const child = h.elements.find(
+      (element) => element.type === "rectangle" && element.id !== source.id,
+    );
+    const arrow = h.elements.find((element) => element.type === "arrow");
+    expect(child).toMatchObject({
+      strokeColor: "#123456",
+      backgroundColor: "#fedcba",
+      strokeWidth: 3,
+      opacity: 72,
+    });
+    expect(arrow).toMatchObject({
+      startBinding: { elementId: source.id },
+      endBinding: { elementId: child?.id },
+    });
+
+    expect(API.getUndoStack()).toHaveLength(1);
+  });
+
+  it("supports all directions, diamonds, and cancellation without mutating on preview", () => {
+    const source = h.elements[0];
+    const directions = ["up", "right", "down", "left"];
+
+    for (const direction of directions) {
+      API.setSelectedElements([source] as NonDeletedExcalidrawElement[]);
+      const handle = screen.getByRole("button", {
+        name: `Create flowchart node ${direction}`,
+      });
+      fireEvent.pointerDown(handle, {
+        button: 0,
+        pointerId: 1,
+        clientX: 400,
+        clientY: 300,
+      });
+      fireEvent.pointerMove(handle, {
+        pointerId: 1,
+        clientX: 450,
+        clientY: 350,
+      });
+      fireEvent.pointerUp(handle, {
+        pointerId: 1,
+        clientX: 450,
+        clientY: 350,
+      });
+    }
+
+    expect(
+      h.elements.filter((element) => element.type === "arrow"),
+    ).toHaveLength(4);
+    expect(
+      h.elements.filter((element) => element.type === "rectangle"),
+    ).toHaveLength(5);
+
+    const diamond = API.createElement({
+      type: "diamond",
+      width: 140,
+      height: 90,
+    });
+    API.setElements([diamond]);
+    API.setSelectedElements([diamond]);
+
+    const diamondHandle = screen.getByRole("button", {
+      name: "Create flowchart node down",
+    });
+    fireEvent.pointerDown(diamondHandle, {
+      button: 0,
+      pointerId: 2,
+      clientX: 70,
+      clientY: 90,
+    });
+    fireEvent.pointerMove(diamondHandle, {
+      pointerId: 2,
+      clientX: 260,
+      clientY: 280,
+    });
+    expect(h.elements).toHaveLength(1);
+    Keyboard.keyPress(KEYS.ESCAPE);
+    fireEvent.pointerUp(diamondHandle, {
+      pointerId: 2,
+      clientX: 260,
+      clientY: 280,
+    });
+    expect(h.elements).toHaveLength(1);
+
+    fireEvent.pointerDown(diamondHandle, {
+      button: 0,
+      pointerId: 3,
+      clientX: 70,
+      clientY: 90,
+    });
+    fireEvent.pointerCancel(diamondHandle, { pointerId: 3 });
+    expect(h.elements).toHaveLength(1);
   });
 
   // regression for #8518: additional siblings must not overlap existing ones
