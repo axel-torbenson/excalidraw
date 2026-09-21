@@ -2703,8 +2703,14 @@ class App extends React.Component<AppProps, AppState> {
                             onDoubleClick={this.handleCanvasDoubleClick}
                           />
                           {this.isDefaultUIEnabled() &&
+                            !this.state.viewModeEnabled &&
+                            !this.state.editingTextElement &&
+                            !this.state.isResizing &&
+                            !this.state.isRotating &&
+                            !this.state.activeLockedId &&
                             this.state.activeTool.type === "selection" &&
                             selectedElements.length === 1 &&
+                            !firstSelectedElement.locked &&
                             (firstSelectedElement.type === "rectangle" ||
                               firstSelectedElement.type === "diamond") && (
                               <FlowchartDragHandles
