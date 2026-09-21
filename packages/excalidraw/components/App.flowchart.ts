@@ -2,6 +2,7 @@ import { isArrowKey, KEYS } from "@excalidraw/common";
 
 import {
   makeNextSelectedElementIds,
+  addNewNodes,
   CaptureUpdateAction,
   FlowChartCreator,
   FlowChartNavigator,
@@ -180,6 +181,33 @@ export class AppFlowchart {
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
   }
+
+  addNodeFromDirection = (
+    node: NonDeletedExcalidrawElement,
+    direction: LinkDirection,
+  ) => {
+    if (
+      !isFlowchartNodeElement(node) ||
+      (node.type !== "rectangle" && node.type !== "diamond")
+    ) {
+      return;
+    }
+
+    const { nodes } = addNewNodes(
+      node,
+      this.app.state,
+      direction,
+      this.app.scene,
+      1,
+    );
+
+    this.app.insertNewElements(nodes);
+    const [newNode] = nodes;
+    if (newNode) {
+      this.selectAndReveal(newNode);
+    }
+    this.captureUpdate();
+  };
 
   private static getLinkDirectionFromKey(key: string): LinkDirection {
     switch (key) {

@@ -1,0 +1,53 @@
+.excalidraw {
+  .excalidraw-flowchart-directional-buttons {
+    position: absolute;
+    inset: 0;
+    z-index: var(--zIndex-canvasButtons);
+    pointer-events: none;
+  }
+
+  .excalidraw-flowchart-directional-button {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--button-gray-2);
+    border-radius: 50%;
+    background: var(--island-bg-color);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+    color: var(--icon-fill-color);
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 500;
+    line-height: 20px;
+    pointer-events: auto;
+    transform: translate(-50%, -50%);
+    transition: background-color 0.1s ease-in-out, border-color 0.1s ease-in-out;
+  }
+
+  .excalidraw-flowchart-directional-button:hover {
+    border-color: var(--color-primary);
+    background: var(--button-hover-bg);
+  }
+
+  .excalidraw-flowchart-directional-button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .excalidraw-flowchart-directional-button--up {
+    margin-top: -14px;
+  }
+
+  .excalidraw-flowchart-directional-button--right {
+    margin-left: 14px;
+  }
+
+  .excalidraw-flowchart-directional-button--down {
+    margin-top: 14px;
+  }
+
+  .excalidraw-flowchart-directional-button--left {
+    margin-left: -14px;
+  }
+}
