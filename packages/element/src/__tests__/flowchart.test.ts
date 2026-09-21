@@ -118,7 +118,7 @@ it("does not mutate the source binding while previewing", () => {
   }) as NonDeleted<ExcalidrawRectangleElement>;
   const scene = new Scene([start], { skipValidation: true });
   const creator = new FlowChartCreator();
-  const initialBoundElements = start.boundElements;
+  const initialSource = { ...start };
 
   creator.createNodeAtPosition(
     start,
@@ -136,5 +136,5 @@ it("does not mutate the source binding while previewing", () => {
     { x: 420, y: 420 },
     false,
   );
-  expect(start.boundElements).toEqual(initialBoundElements);
+  expect(start).toEqual(initialSource);
 });

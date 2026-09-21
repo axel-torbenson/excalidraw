@@ -50,7 +50,7 @@ import {
   type OrderedExcalidrawElement,
 } from "./types";
 
-import type { Scene } from "./Scene";
+import { Scene } from "./Scene";
 
 export type LinkDirection = "up" | "right" | "down" | "left";
 
@@ -720,20 +720,27 @@ export class FlowChartCreator {
     preserveSourceBinding = true,
   ) {
     const elementsMap = scene.getNonDeletedElementsMap();
-    const originalBoundElements = startNode.boundElements;
     const nextNode = cloneFlowchartNode(startNode, position.x, position.y);
+    const previewStartNode = preserveSourceBinding
+      ? startNode
+      : ({ ...startNode } as NonDeleted<ExcalidrawFlowchartNodeElement>);
+    const bindingScene = preserveSourceBinding
+      ? scene
+      : new Scene(
+          scene
+            .getElementsIncludingDeleted()
+            .map((element) =>
+              element.id === startNode.id ? previewStartNode : element,
+            ),
+          { skipValidation: true },
+        );
     const bindingArrow = createBindingArrow(
-      startNode,
+      previewStartNode,
       nextNode,
       direction,
       appState,
-      scene,
+      bindingScene,
     );
-    if (!preserveSourceBinding) {
-      mutateElement(startNode, elementsMap, {
-        boundElements: originalBoundElements,
-      });
-    }
 
     this.isCreatingChart = true;
     this.direction = direction;

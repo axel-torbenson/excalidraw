@@ -34,12 +34,6 @@ type FlowchartOperation =
   | { type: "committed"; nodes: PendingExcalidrawElements }
   | { type: "navigationEnded" };
 
-export const shouldCommitKeyboardFlowchartOnKeyUp = (
-  ctrlOrCmdPressed: boolean,
-  isCreatingChart: boolean,
-  keyboardCreationActive: boolean,
-) => !ctrlOrCmdPressed && isCreatingChart && keyboardCreationActive;
-
 /**
  * Captures the App state management for the flowchart functionality.
  */
@@ -369,11 +363,9 @@ export class AppFlowchart {
     }
 
     if (
-      shouldCommitKeyboardFlowchartOnKeyUp(
-        event[KEYS.CTRL_OR_CMD],
-        creator.isCreatingChart,
-        this.keyboardCreationActive,
-      )
+      !event[KEYS.CTRL_OR_CMD] &&
+      creator.isCreatingChart &&
+      this.keyboardCreationActive
     ) {
       const nodes = creator.pendingNodes ?? [];
       creator.clear();

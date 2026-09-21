@@ -1,17 +1,64 @@
-import { shouldCommitKeyboardFlowchartOnKeyUp } from "./App.flowchart";
+import { Scene, newElement } from "@excalidraw/element";
+
+import { AppFlowchart } from "./App.flowchart";
 
 describe("AppFlowchart", () => {
   it("does not commit a pointer drag on keyup", () => {
-    expect(shouldCommitKeyboardFlowchartOnKeyUp(false, true, false)).toBe(
-      false,
-    );
-  });
+    const ownerWindow = new EventTarget();
+    const ownerDocument = new EventTarget();
+    const node = newElement({
+      type: "rectangle",
+      x: 100,
+      y: 100,
+      width: 180,
+      height: 90,
+    });
+    const scene = new Scene([node], { skipValidation: true });
+    const app = {
+      state: { viewModeEnabled: false },
+      ownerWindow,
+      ownerDocument,
+      scene,
+      cursor: { set: () => {}, reset: () => {} },
+    };
+    const flowchart = new AppFlowchart(app as never);
+    const pointerDown = Object.assign(new Event("pointerdown"), {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+      preventDefault: () => {},
+      stopPropagation: () => {},
+    }) as PointerEvent;
 
-  it("commits only an active keyboard flowchart on modifier release", () => {
-    expect(shouldCommitKeyboardFlowchartOnKeyUp(false, true, true)).toBe(true);
-    expect(shouldCommitKeyboardFlowchartOnKeyUp(true, true, true)).toBe(false);
-    expect(shouldCommitKeyboardFlowchartOnKeyUp(false, false, true)).toBe(
+    flowchart.beginPointerDrag(node as never, "right", pointerDown);
+    const creator = (
+      flowchart as unknown as {
+        creator: {
+          createNodeAtPosition: Function;
+          pendingNodes: unknown;
+          isCreatingChart: boolean;
+        };
+      }
+    ).creator;
+    creator.createNodeAtPosition(
+      node,
+      { currentItemEndArrowhead: "arrow" },
+      "right",
+      scene,
+      { x: 400, y: 100 },
       false,
     );
+    const pending = creator.pendingNodes;
+
+    expect(
+      flowchart.handleKeyEvent({
+        type: "keyup",
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+      } as KeyboardEvent),
+    ).toBe(false);
+    expect(creator.pendingNodes).toBe(pending);
+    flowchart.clear();
   });
 });
