@@ -441,6 +441,31 @@ const createBindingArrow = (
   };
 };
 
+/**
+ * Creates one flowchart node and its bound elbow arrow at an explicit scene
+ * position. Used by pointer-driven creation, where the user chooses the
+ * destination instead of accepting the keyboard layout offset.
+ */
+export const createFlowchartNodeAtPosition = (
+  startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  appState: AppState,
+  direction: LinkDirection,
+  scene: Scene,
+  x: number,
+  y: number,
+) => {
+  const nextNode = cloneFlowchartNode(startNode, x, y);
+  const bindingArrow = createBindingArrow(
+    startNode,
+    nextNode,
+    direction,
+    appState,
+    scene,
+  );
+
+  return { node: nextNode, bindingArrow };
+};
+
 export class FlowChartNavigator {
   isExploring: boolean = false;
   // nodes that are ONE link away (successor and predecessor both included)

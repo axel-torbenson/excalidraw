@@ -242,6 +242,7 @@ import {
   type ApplyToOptions,
   positionElementsOnGrid,
   calculateFixedPointForNonElbowArrowBinding,
+  createFlowchartNodeAtPosition,
   bindOrUnbindBindingElement,
   mutateElement,
   getElementBounds,
@@ -2708,6 +2709,7 @@ class App extends React.Component<AppProps, AppState> {
                               />
                             )}
                           {this.renderFrameNames()}
+                          {this.flowchart.renderDragHandles()}
                           {this.isDefaultUIEnabled() &&
                             this.state.activeLockedId && (
                               <UnlockPopup
@@ -2748,6 +2750,31 @@ class App extends React.Component<AppProps, AppState> {
   public getSceneElements = () => {
     return this.scene.getNonDeletedElements();
   };
+
+  public sceneCoordsToViewportCoords = (coords: {
+    sceneX: number;
+    sceneY: number;
+  }) => sceneCoordsToViewportCoords(coords, this.state);
+
+  public viewportCoordsToSceneCoords = (event: {
+    clientX: number;
+    clientY: number;
+  }) => viewportCoordsToSceneCoords(event, this.state);
+
+  public createFlowchartNodeAtPosition = (
+    startNode: Parameters<typeof createFlowchartNodeAtPosition>[0],
+    direction: Parameters<typeof createFlowchartNodeAtPosition>[2],
+    x: number,
+    y: number,
+  ) =>
+    createFlowchartNodeAtPosition(
+      startNode,
+      this.state,
+      direction,
+      this.scene,
+      x,
+      y,
+    );
 
   public onInsertElements = (elements: readonly ExcalidrawElement[]) => {
     this.addElementsFromPasteOrLibrary({
