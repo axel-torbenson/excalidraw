@@ -717,8 +717,10 @@ export class FlowChartCreator {
     direction: LinkDirection,
     scene: Scene,
     position: { x: number; y: number },
+    preserveSourceBinding = true,
   ) {
     const elementsMap = scene.getNonDeletedElementsMap();
+    const originalBoundElements = startNode.boundElements;
     const nextNode = cloneFlowchartNode(startNode, position.x, position.y);
     const bindingArrow = createBindingArrow(
       startNode,
@@ -727,6 +729,11 @@ export class FlowChartCreator {
       appState,
       scene,
     );
+    if (!preserveSourceBinding) {
+      mutateElement(startNode, elementsMap, {
+        boundElements: originalBoundElements,
+      });
+    }
 
     this.isCreatingChart = true;
     this.direction = direction;

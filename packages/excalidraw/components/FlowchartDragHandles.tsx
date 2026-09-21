@@ -80,6 +80,7 @@ export const FlowchartDragHandles = ({
               event.nativeEvent,
             );
           }}
+          onLostPointerCapture={() => app.flowchart.cancelPointerDrag()}
         >
           <span aria-hidden="true">+</span>
         </button>

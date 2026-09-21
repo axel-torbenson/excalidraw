@@ -34,6 +34,12 @@ type FlowchartOperation =
   | { type: "committed"; nodes: PendingExcalidrawElements }
   | { type: "navigationEnded" };
 
+export const shouldCommitKeyboardFlowchartOnKeyUp = (
+  ctrlOrCmdPressed: boolean,
+  isCreatingChart: boolean,
+  keyboardCreationActive: boolean,
+) => !ctrlOrCmdPressed && isCreatingChart && keyboardCreationActive;
+
 /**
  * Captures the App state management for the flowchart functionality.
  */
@@ -47,6 +53,7 @@ export class AppFlowchart {
     origin: { x: number; y: number };
     isDragging: boolean;
   } | null = null;
+  private keyboardCreationActive = false;
 
   constructor(private app: App) {}
 
@@ -63,6 +70,7 @@ export class AppFlowchart {
     this.clearPointerDrag();
     this.creator.clear();
     this.navigator.clear();
+    this.keyboardCreationActive = false;
   };
 
   beginPointerDrag = (
@@ -76,6 +84,7 @@ export class AppFlowchart {
 
     event.preventDefault();
     event.stopPropagation();
+    this.keyboardCreationActive = false;
     this.pointerDrag = {
       node,
       direction,
@@ -99,6 +108,11 @@ export class AppFlowchart {
     this.app.ownerWindow.addEventListener(
       "keydown",
       this.handlePointerDragKeyDown,
+    );
+    this.app.ownerWindow.addEventListener("blur", this.handlePointerDragBlur);
+    this.app.ownerDocument.addEventListener(
+      "visibilitychange",
+      this.handlePointerDragVisibilityChange,
     );
     this.app.cursor.set("grabbing");
   };
@@ -131,6 +145,7 @@ export class AppFlowchart {
         x: x - drag.node.width / 2,
         y: y - drag.node.height / 2,
       },
+      false,
     );
     this.app.revealIfHidden(this.creator.pendingNodes ?? []);
     this.app.triggerRender(true);
@@ -146,6 +161,16 @@ export class AppFlowchart {
       const nodes = this.creator.pendingNodes ?? [];
       this.creator.clear();
       if (nodes.length) {
+        const [, bindingArrow] = nodes;
+        const boundElements = drag.node.boundElements ?? [];
+        if (!boundElements.some(({ id }) => id === bindingArrow.id)) {
+          this.app.scene.mutateElement(drag.node, {
+            boundElements: boundElements.concat({
+              id: bindingArrow.id,
+              type: "arrow",
+            }),
+          });
+        }
         this.app.insertNewElements(nodes);
         this.selectAndReveal(nodes[0]);
         this.captureUpdate();
@@ -176,6 +201,25 @@ export class AppFlowchart {
     }
   };
 
+  private handlePointerDragBlur = () => {
+    this.cancelPointerDrag();
+  };
+
+  private handlePointerDragVisibilityChange = () => {
+    if (this.app.ownerDocument.visibilityState === "hidden") {
+      this.cancelPointerDrag();
+    }
+  };
+
+  cancelPointerDrag = () => {
+    if (!this.pointerDrag) {
+      return;
+    }
+    this.creator.clear();
+    this.clearPointerDragListeners();
+    this.app.triggerRender(true);
+  };
+
   private clearPointerDragListeners = () => {
     this.app.ownerWindow.removeEventListener(
       "pointermove",
@@ -192,6 +236,14 @@ export class AppFlowchart {
     this.app.ownerWindow.removeEventListener(
       "keydown",
       this.handlePointerDragKeyDown,
+    );
+    this.app.ownerWindow.removeEventListener(
+      "blur",
+      this.handlePointerDragBlur,
+    );
+    this.app.ownerDocument.removeEventListener(
+      "visibilitychange",
+      this.handlePointerDragVisibilityChange,
     );
     this.pointerDrag = null;
     this.app.cursor.reset();
@@ -284,6 +336,7 @@ export class AppFlowchart {
             AppFlowchart.getLinkDirectionFromKey(event.key),
             app.scene,
           );
+          this.keyboardCreationActive = creator.isCreatingChart;
         }
 
         return { type: "creating", pending: creator.pendingNodes ?? [] };
@@ -315,9 +368,16 @@ export class AppFlowchart {
       navigator.clear();
     }
 
-    if (!event[KEYS.CTRL_OR_CMD] && creator.isCreatingChart) {
+    if (
+      shouldCommitKeyboardFlowchartOnKeyUp(
+        event[KEYS.CTRL_OR_CMD],
+        creator.isCreatingChart,
+        this.keyboardCreationActive,
+      )
+    ) {
       const nodes = creator.pendingNodes ?? [];
       creator.clear();
+      this.keyboardCreationActive = false;
       return { type: "committed", nodes };
     }
 

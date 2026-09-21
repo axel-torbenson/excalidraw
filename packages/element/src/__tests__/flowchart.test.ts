@@ -7,7 +7,11 @@ import { addNewNodes, FlowChartCreator } from "../flowchart";
 import { newElement, newStickyNoteElement } from "../newElement";
 import { isFlowchartNodeElement, isStickyNoteElement } from "../typeChecks";
 
-import type { ExcalidrawDiamondElement, NonDeleted } from "../types";
+import type {
+  ExcalidrawDiamondElement,
+  ExcalidrawRectangleElement,
+  NonDeleted,
+} from "../types";
 
 describe("flowchart", () => {
   it("creates connected sticky notes", () => {
@@ -101,4 +105,36 @@ it("previews a positioned same-style node in every direction", () => {
       endBinding: { elementId: node.id },
     });
   }
+});
+
+it("does not mutate the source binding while previewing", () => {
+  const start = newElement({
+    type: "rectangle",
+    x: 100,
+    y: 100,
+    width: 180,
+    height: 90,
+    boundElements: [{ id: "existing-arrow", type: "arrow" }],
+  }) as NonDeleted<ExcalidrawRectangleElement>;
+  const scene = new Scene([start], { skipValidation: true });
+  const creator = new FlowChartCreator();
+  const initialBoundElements = start.boundElements;
+
+  creator.createNodeAtPosition(
+    start,
+    { currentItemEndArrowhead: "arrow" } as AppState,
+    "left",
+    scene,
+    { x: 420, y: 260 },
+    false,
+  );
+  creator.createNodeAtPosition(
+    start,
+    { currentItemEndArrowhead: "arrow" } as AppState,
+    "down",
+    scene,
+    { x: 420, y: 420 },
+    false,
+  );
+  expect(start.boundElements).toEqual(initialBoundElements);
 });
