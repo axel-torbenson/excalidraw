@@ -420,6 +420,7 @@ import {
   getViewportForZoomWithScrollConstraints,
 } from "../viewport";
 import { ElementCanvasButtons } from "../components/ElementCanvasButtons";
+import { FlowchartSidePlus } from "../components/FlowchartSidePlus";
 import { LaserTrails } from "../laserTrails";
 import { withBatchedUpdates, withBatchedUpdatesThrottled } from "../reactUtils";
 import { isPointHittingTextAutoResizeHandle } from "../textAutoResizeHandle";
@@ -2519,6 +2520,28 @@ class App extends React.Component<AppProps, AppState> {
                                 updateEmbedValidationStatus={
                                   this.updateEmbedValidationStatus
                                 }
+                              />
+                            )}
+                          {this.isDefaultUIEnabled() &&
+                            selectedElements.length === 1 &&
+                            (firstSelectedElement?.type === "rectangle" ||
+                              firstSelectedElement?.type === "diamond") &&
+                            !firstSelectedElement.locked &&
+                            !this.state.editingTextElement &&
+                            !this.state.viewModeEnabled &&
+                            !this.state.contextMenu &&
+                            !this.state.newElement &&
+                            !this.state.resizingElement &&
+                            !this.state.isRotating &&
+                            !this.state.openMenu && (
+                              <FlowchartSidePlus
+                                element={firstSelectedElement}
+                                elementsMap={renderableElementsMap}
+                                appState={this.state}
+                                onCreate={(direction) => {
+                                  this.flowchart.createNode(direction);
+                                  this.focusContainer();
+                                }}
                               />
                             )}
                           {this.isDefaultUIEnabled() &&

@@ -44,6 +44,48 @@ export class AppFlowchart {
     return this.creator.isCreatingChart;
   }
 
+  /**
+   * Creates and commits one connected flowchart node from the current
+   * selection. The keyboard workflow intentionally remains incremental and
+   * previews pending nodes; canvas controls use this one-shot variant so a
+   * click is a single undoable action.
+   */
+  createNode = (direction: LinkDirection): boolean => {
+    const selectedElements = getSelectedElements(
+      this.app.scene.getNonDeletedElementsMap(),
+      this.app.state,
+    );
+    const selectedElement = selectedElements[0];
+
+    if (
+      selectedElements.length !== 1 ||
+      !selectedElement ||
+      selectedElement.locked ||
+      !isFlowchartNodeElement(selectedElement)
+    ) {
+      return false;
+    }
+
+    this.creator.createNodes(
+      selectedElement,
+      this.app.state,
+      direction,
+      this.app.scene,
+    );
+
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+
+    if (!nodes.length) {
+      return false;
+    }
+
+    this.app.insertNewElements(nodes);
+    this.selectAndReveal(nodes[0]);
+    this.captureUpdate();
+    return true;
+  };
+
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
     this.creator.clear();
