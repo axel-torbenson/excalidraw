@@ -29,6 +29,7 @@ import { useExcalidrawContainer } from "./App";
 import Stack from "./Stack";
 import { Tooltip } from "./Tooltip";
 import { PropertiesPopover } from "./PropertiesPopover";
+import { FlowchartAddStepAction } from "./FlowchartAddStepAction";
 import {
   sharpArrowIcon,
   roundArrowIcon,
@@ -166,6 +167,7 @@ export const SelectedShapeActions = ({
 
   return (
     <div className="selected-shape-actions">
+      <FlowchartAddStepAction />
       <div>{predicates.strokeColor && renderAction("changeStrokeColor")}</div>
       {predicates.backgroundColor && (
         <div>{renderAction("changeBackgroundColor")}</div>
@@ -633,6 +635,7 @@ export const CompactShapeActions = ({
 
   return (
     <div className="compact-shape-actions">
+      <FlowchartAddStepAction />
       {/* Stroke Color */}
       {predicates.strokeColor && (
         <div className={clsx("compact-action-item")}>
@@ -793,6 +796,7 @@ export const MobileShapeActions = ({
           flex: 1,
         }}
       >
+        <FlowchartAddStepAction />
         {predicates.strokeColor && (
           <div className={clsx("compact-action-item")}>
             {renderAction("changeStrokeColor")}

@@ -50,6 +50,43 @@ export class AppFlowchart {
     this.navigator.clear();
   };
 
+  addNode = (
+    startNode: NonDeletedExcalidrawElement,
+    direction: LinkDirection,
+  ) => {
+    if (!isFlowchartNodeElement(startNode) || this.creator.isCreatingChart) {
+      return false;
+    }
+
+    this.creator.createNodes(
+      startNode,
+      this.app.state,
+      direction,
+      this.app.scene,
+    );
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+
+    if (!nodes.length) {
+      return false;
+    }
+
+    this.app.insertNewElements(nodes);
+
+    const firstNode = nodes.find(isFlowchartNodeElement);
+    if (firstNode) {
+      this.selectAndReveal(firstNode);
+      this.app.startTextEditing({
+        sceneX: firstNode.x + firstNode.width / 2,
+        sceneY: firstNode.y + firstNode.height / 2,
+        container: firstNode,
+      });
+    }
+
+    this.captureUpdate();
+    return true;
+  };
+
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
     const operation = this.resolveKeyboardEventToOperation(event);
 
