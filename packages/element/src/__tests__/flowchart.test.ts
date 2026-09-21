@@ -3,9 +3,15 @@ import { ROUNDNESS } from "@excalidraw/common";
 import type { AppState } from "@excalidraw/excalidraw/types";
 
 import { Scene } from "../Scene";
-import { addNewNodes } from "../flowchart";
-import { newStickyNoteElement } from "../newElement";
+import { addNewNodes, FlowChartCreator } from "../flowchart";
+import { newElement, newStickyNoteElement } from "../newElement";
 import { isFlowchartNodeElement, isStickyNoteElement } from "../typeChecks";
+
+import type {
+  ExcalidrawDiamondElement,
+  ExcalidrawRectangleElement,
+  NonDeleted,
+} from "../types";
 
 describe("flowchart", () => {
   it("creates connected sticky notes", () => {
@@ -57,4 +63,78 @@ describe("flowchart", () => {
       endBinding: { elementId: nextNode.id },
     });
   });
+});
+
+it("previews a positioned same-style node in every direction", () => {
+  const start = newElement({
+    type: "diamond",
+    x: 100,
+    y: 100,
+    width: 180,
+    height: 90,
+    backgroundColor: "#dbeafe",
+    strokeColor: "#1e3a8a",
+    strokeWidth: 3,
+  }) as NonDeleted<ExcalidrawDiamondElement>;
+  const scene = new Scene([start], { skipValidation: true });
+  const creator = new FlowChartCreator();
+
+  for (const direction of ["up", "right", "down", "left"] as const) {
+    creator.createNodeAtPosition(
+      start,
+      { currentItemEndArrowhead: "arrow" } as AppState,
+      direction,
+      scene,
+      { x: 420, y: 260 },
+    );
+
+    const [node, arrow] = creator.pendingNodes ?? [];
+    expect(node).toMatchObject({
+      type: "diamond",
+      x: 420,
+      y: 260,
+      width: start.width,
+      height: start.height,
+      backgroundColor: start.backgroundColor,
+      strokeColor: start.strokeColor,
+      strokeWidth: start.strokeWidth,
+    });
+    expect(arrow).toMatchObject({
+      type: "arrow",
+      startBinding: { elementId: start.id },
+      endBinding: { elementId: node.id },
+    });
+  }
+});
+
+it("does not mutate the source binding while previewing", () => {
+  const start = newElement({
+    type: "rectangle",
+    x: 100,
+    y: 100,
+    width: 180,
+    height: 90,
+    boundElements: [{ id: "existing-arrow", type: "arrow" }],
+  }) as NonDeleted<ExcalidrawRectangleElement>;
+  const scene = new Scene([start], { skipValidation: true });
+  const creator = new FlowChartCreator();
+  const initialSource = { ...start };
+
+  creator.createNodeAtPosition(
+    start,
+    { currentItemEndArrowhead: "arrow" } as AppState,
+    "left",
+    scene,
+    { x: 420, y: 260 },
+    false,
+  );
+  creator.createNodeAtPosition(
+    start,
+    { currentItemEndArrowhead: "arrow" } as AppState,
+    "down",
+    scene,
+    { x: 420, y: 420 },
+    false,
+  );
+  expect(start).toEqual(initialSource);
 });

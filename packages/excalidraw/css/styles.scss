@@ -994,3 +994,36 @@ body.excalidraw-cursor-resize * {
     font-family: "Assistant";
   }
 }
+
+.excalidraw-flowchart-drag-handles {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.excalidraw-flowchart-drag-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--color-primary);
+  border-radius: 50%;
+  background: var(--island-bg-color);
+  color: var(--color-primary);
+  cursor: grab;
+  font-size: 16px;
+  line-height: 15px;
+  pointer-events: auto;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
+}
+
+.excalidraw-flowchart-drag-handle:hover,
+.excalidraw-flowchart-drag-handle:focus-visible {
+  background: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
+.excalidraw-flowchart-drag-handle:active {
+  cursor: grabbing;
+}

@@ -449,6 +449,7 @@ import { AppToolDrag, TOOL_DRAG_PREVIEW_OPACITY } from "./App.toolDrag";
 import { AppCursor } from "./App.cursor";
 import { AppDrawShape } from "./App.drawshape";
 import { AppFlowchart } from "./App.flowchart";
+import { FlowchartDragHandles } from "./FlowchartDragHandles";
 import { AppViewport, RIGHT_SIDEBAR_WIDTH } from "./App.viewport";
 import { AppWheel } from "./App.wheel";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2701,6 +2702,22 @@ class App extends React.Component<AppProps, AppState> {
                             onPointerDown={this.handleCanvasPointerDown}
                             onDoubleClick={this.handleCanvasDoubleClick}
                           />
+                          {this.isDefaultUIEnabled() &&
+                            !this.state.viewModeEnabled &&
+                            !this.state.editingTextElement &&
+                            !this.state.isResizing &&
+                            !this.state.isRotating &&
+                            !this.state.activeLockedId &&
+                            this.state.activeTool.type === "selection" &&
+                            selectedElements.length === 1 &&
+                            !firstSelectedElement.locked &&
+                            (firstSelectedElement.type === "rectangle" ||
+                              firstSelectedElement.type === "diamond") && (
+                              <FlowchartDragHandles
+                                app={this}
+                                element={firstSelectedElement}
+                              />
+                            )}
                           {this.props.viewportStatusFrame?.border &&
                             this.editorInterface.formFactor === "phone" && (
                               <ViewportStatusBorder
