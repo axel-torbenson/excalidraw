@@ -1,4 +1,9 @@
-import { isArrowKey, KEYS } from "@excalidraw/common";
+import {
+  DRAGGING_THRESHOLD,
+  isArrowKey,
+  KEYS,
+  viewportCoordsToSceneCoords,
+} from "@excalidraw/common";
 
 import {
   makeNextSelectedElementIds,
@@ -12,6 +17,8 @@ import {
 
 import type {
   ExcalidrawElement,
+  ExcalidrawFlowchartNodeElement,
+  NonDeleted,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
@@ -33,6 +40,13 @@ type FlowchartOperation =
 export class AppFlowchart {
   private creator = new FlowChartCreator();
   private navigator = new FlowChartNavigator();
+  private pointerDrag: {
+    node: NonDeleted<ExcalidrawFlowchartNodeElement>;
+    direction: LinkDirection;
+    pointerId: number;
+    origin: { x: number; y: number };
+    isDragging: boolean;
+  } | null = null;
 
   constructor(private app: App) {}
 
@@ -46,8 +60,149 @@ export class AppFlowchart {
 
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
+    this.clearPointerDrag();
     this.creator.clear();
     this.navigator.clear();
+  };
+
+  beginPointerDrag = (
+    node: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    direction: LinkDirection,
+    event: PointerEvent,
+  ) => {
+    if (this.pointerDrag || this.app.state.viewModeEnabled) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.pointerDrag = {
+      node,
+      direction,
+      pointerId: event.pointerId,
+      origin: { x: event.clientX, y: event.clientY },
+      isDragging: false,
+    };
+
+    this.app.ownerWindow.addEventListener(
+      "pointermove",
+      this.handlePointerDragMove,
+    );
+    this.app.ownerWindow.addEventListener(
+      "pointerup",
+      this.handlePointerDragUp,
+    );
+    this.app.ownerWindow.addEventListener(
+      "pointercancel",
+      this.handlePointerDragCancel,
+    );
+    this.app.ownerWindow.addEventListener(
+      "keydown",
+      this.handlePointerDragKeyDown,
+    );
+    this.app.cursor.set("grabbing");
+  };
+
+  private handlePointerDragMove = (event: PointerEvent) => {
+    const drag = this.pointerDrag;
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    const distance = Math.hypot(
+      event.clientX - drag.origin.x,
+      event.clientY - drag.origin.y,
+    );
+    if (!drag.isDragging && distance < DRAGGING_THRESHOLD) {
+      return;
+    }
+
+    drag.isDragging = true;
+    const { x, y } = viewportCoordsToSceneCoords(
+      { clientX: event.clientX, clientY: event.clientY },
+      this.app.state,
+    );
+    this.creator.createNodeAtPosition(
+      drag.node,
+      this.app.state,
+      drag.direction,
+      this.app.scene,
+      {
+        x: x - drag.node.width / 2,
+        y: y - drag.node.height / 2,
+      },
+    );
+    this.app.revealIfHidden(this.creator.pendingNodes ?? []);
+    this.app.triggerRender(true);
+  };
+
+  private handlePointerDragUp = (event: PointerEvent) => {
+    const drag = this.pointerDrag;
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    if (drag.isDragging) {
+      const nodes = this.creator.pendingNodes ?? [];
+      this.creator.clear();
+      if (nodes.length) {
+        this.app.insertNewElements(nodes);
+        this.selectAndReveal(nodes[0]);
+        this.captureUpdate();
+      }
+    } else {
+      this.creator.clear();
+    }
+    this.clearPointerDragListeners();
+    this.app.triggerRender(true);
+  };
+
+  private handlePointerDragCancel = (event: PointerEvent) => {
+    const drag = this.pointerDrag;
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+    this.creator.clear();
+    this.clearPointerDragListeners();
+    this.app.triggerRender(true);
+  };
+
+  private handlePointerDragKeyDown = (event: KeyboardEvent) => {
+    if (event.key === KEYS.ESCAPE && this.pointerDrag) {
+      event.preventDefault();
+      this.creator.clear();
+      this.clearPointerDragListeners();
+      this.app.triggerRender(true);
+    }
+  };
+
+  private clearPointerDragListeners = () => {
+    this.app.ownerWindow.removeEventListener(
+      "pointermove",
+      this.handlePointerDragMove,
+    );
+    this.app.ownerWindow.removeEventListener(
+      "pointerup",
+      this.handlePointerDragUp,
+    );
+    this.app.ownerWindow.removeEventListener(
+      "pointercancel",
+      this.handlePointerDragCancel,
+    );
+    this.app.ownerWindow.removeEventListener(
+      "keydown",
+      this.handlePointerDragKeyDown,
+    );
+    this.pointerDrag = null;
+    this.app.cursor.reset();
+  };
+
+  private clearPointerDrag = () => {
+    if (!this.pointerDrag) {
+      return;
+    }
+    this.creator.clear();
+    this.clearPointerDragListeners();
   };
 
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
@@ -100,7 +255,11 @@ export class AppFlowchart {
     const { creator, navigator, app } = this;
 
     if (event.type === "keydown") {
-      if (event.key === KEYS.ESCAPE && creator.isCreatingChart) {
+      if (
+        event.key === KEYS.ESCAPE &&
+        (creator.isCreatingChart || this.pointerDrag)
+      ) {
+        this.clearPointerDrag();
         creator.clear();
         return { type: "canceled" };
       }
