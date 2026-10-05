@@ -24,6 +24,17 @@
     "bringToFront": "Bring to front",
     "sendBackward": "Send backward",
     "delete": "Delete",
+    "flowchart": {
+      "addStep": "Add step (Ctrl/Cmd + Arrow adds directly)",
+      "addStepShort": "Add step",
+      "addStepDirection": "Add step {{direction}}",
+      "addStepDirectionTooltip": "Add step {{direction}} (Ctrl/Cmd + Arrow adds directly)",
+      "chooseDirection": "Choose a direction for the next flowchart step",
+      "direction_up": "up",
+      "direction_right": "right",
+      "direction_down": "down",
+      "direction_left": "left"
+    },
     "copyStyles": "Copy styles",
     "pasteStyles": "Paste styles",
     "stroke": "Stroke",

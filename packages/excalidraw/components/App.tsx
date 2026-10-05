@@ -457,6 +457,7 @@ import { activeEyeDropperAtom } from "./EyeDropper";
 import { ViewportStatusBorder } from "./ViewportStatusFrame/ViewportStatusFrame";
 import LayerUI from "./LayerUI";
 import { ElementCanvasButton } from "./MagicButton";
+import { FlowchartAddStep } from "./FlowchartAddStep";
 import { SVGLayer } from "./SVGLayer";
 import Spinner from "./Spinner";
 import { searchItemInFocusAtom } from "./SearchMenu";
@@ -2518,6 +2519,36 @@ class App extends React.Component<AppProps, AppState> {
                                 setToast={this.setToast}
                                 updateEmbedValidationStatus={
                                   this.updateEmbedValidationStatus
+                                }
+                              />
+                            )}
+                          {this.isDefaultUIEnabled() &&
+                            selectedElements.length === 1 &&
+                            (firstSelectedElement.type === "rectangle" ||
+                              firstSelectedElement.type === "diamond") &&
+                            this.state.activeTool.type === "selection" &&
+                            !this.state.isLoading &&
+                            !this.state.contextMenu &&
+                            !this.state.openMenu &&
+                            !this.state.openDialog &&
+                            !this.state.viewModeEnabled &&
+                            !this.state.selectedElementsAreBeingDragged &&
+                            !this.state.resizingElement &&
+                            !this.state.isRotating &&
+                            !this.state.editingTextElement &&
+                            !this.state.editingFrame &&
+                            !this.state.newElement &&
+                            !this.state.selectionElement &&
+                            !this.state.selectedLinearElement && (
+                              <FlowchartAddStep
+                                key={firstSelectedElement.id}
+                                element={firstSelectedElement}
+                                elementsMap={renderableElementsMap}
+                                onAddStep={(direction) =>
+                                  this.flowchart.addStep(
+                                    firstSelectedElement,
+                                    direction,
+                                  )
                                 }
                               />
                             )}
