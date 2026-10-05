@@ -449,6 +449,7 @@ import { AppToolDrag, TOOL_DRAG_PREVIEW_OPACITY } from "./App.toolDrag";
 import { AppCursor } from "./App.cursor";
 import { AppDrawShape } from "./App.drawshape";
 import { AppFlowchart } from "./App.flowchart";
+import { FlowchartCreationHandles } from "./FlowchartCreationHandles";
 import { AppViewport, RIGHT_SIDEBAR_WIDTH } from "./App.viewport";
 import { AppWheel } from "./App.wheel";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2701,6 +2702,41 @@ class App extends React.Component<AppProps, AppState> {
                             onPointerDown={this.handleCanvasPointerDown}
                             onDoubleClick={this.handleCanvasDoubleClick}
                           />
+                          {this.isInteractionEnabled() &&
+                            !this.state.viewModeEnabled &&
+                            this.state.activeTool.type ===
+                              TOOL_TYPE.selection &&
+                            !this.state.selectedElementsAreBeingDragged &&
+                            !this.state.resizingElement &&
+                            !this.state.isRotating &&
+                            !this.state.editingTextElement &&
+                            !this.state.newElement &&
+                            !this.state.selectionElement &&
+                            selectedElements.length === 1 &&
+                            !firstSelectedElement.locked &&
+                            (firstSelectedElement.type === "rectangle" ||
+                              firstSelectedElement.type === "diamond") && (
+                              <FlowchartCreationHandles
+                                appState={this.state}
+                                element={firstSelectedElement}
+                                elementsMap={allElementsMap}
+                                isDragging={this.flowchart.isDraggingCreation}
+                                onPointerDown={(direction, event) =>
+                                  this.flowchart.startDragCreation(
+                                    firstSelectedElement,
+                                    direction,
+                                    event,
+                                  )
+                                }
+                                onPointerMove={
+                                  this.flowchart.updateDragCreation
+                                }
+                                onPointerUp={this.flowchart.finishDragCreation}
+                                onPointerCancel={() =>
+                                  this.flowchart.cancelDragCreation()
+                                }
+                              />
+                            )}
                           {this.props.viewportStatusFrame?.border &&
                             this.editorInterface.formFactor === "phone" && (
                               <ViewportStatusBorder

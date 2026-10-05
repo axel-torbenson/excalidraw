@@ -307,6 +307,33 @@ export const addNewNodes = (
   return { nodes, crossStart };
 };
 
+/**
+ * Creates a single flowchart node at an explicit position. Used by pointer
+ * driven creation, where the user chooses the node's location rather than
+ * using the automatic obstacle-avoiding placement.
+ */
+export const addNewNodeAtPosition = (
+  startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  appState: AppState,
+  direction: LinkDirection,
+  scene: Scene,
+  x: number,
+  y: number,
+) => {
+  const node = cloneFlowchartNode(startNode, x, y);
+  const arrow = createBindingArrow(startNode, node, direction, appState, scene);
+  return { nodes: [node, arrow] };
+};
+
+/** Creates a bound flowchart arrow between two existing flowchart nodes. */
+export const createFlowchartArrow = (
+  startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  endNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  appState: AppState,
+  direction: LinkDirection,
+  scene: Scene,
+) => createBindingArrow(startNode, endNode, direction, appState, scene);
+
 const createBindingArrow = (
   startBindingElement: NonDeleted<ExcalidrawFlowchartNodeElement>,
   endBindingElement: NonDeleted<ExcalidrawFlowchartNodeElement>,
