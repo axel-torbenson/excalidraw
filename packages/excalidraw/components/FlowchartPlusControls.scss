@@ -1,0 +1,38 @@
+.excalidraw {
+  .excalidraw-flowchart-plus-controls {
+    position: absolute;
+    inset: 0;
+    z-index: var(--zIndex-canvasButtons);
+    pointer-events: none;
+
+    &__button {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid var(--default-border-color);
+      border-radius: 50%;
+      background: var(--island-bg-color);
+      color: var(--icon-fill-color);
+      box-shadow: 0 1px 3px rgb(0 0 0 / 20%);
+      font: inherit;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background-color 100ms ease, transform 100ms ease;
+
+      &:hover {
+        background: var(--button-hover-bg);
+        transform: scale(1.08);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+      }
+    }
+  }
+}
