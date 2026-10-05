@@ -57,6 +57,30 @@ export type LinkDirection = "up" | "right" | "down" | "left";
 const VERTICAL_OFFSET = 100;
 const HORIZONTAL_OFFSET = 100;
 
+export const getFlowchartHandlePosition = (
+  element: ExcalidrawFlowchartNodeElement,
+  direction: LinkDirection,
+  zoom: number,
+) => {
+  const gap = 12 / zoom;
+  switch (direction) {
+    case "up":
+      return { x: element.x + element.width / 2, y: element.y - gap };
+    case "right":
+      return {
+        x: element.x + element.width + gap,
+        y: element.y + element.height / 2,
+      };
+    case "down":
+      return {
+        x: element.x + element.width / 2,
+        y: element.y + element.height + gap,
+      };
+    case "left":
+      return { x: element.x - gap, y: element.y + element.height / 2 };
+  }
+};
+
 type Interval = { start: number; end: number };
 
 const mergeIntervals = (intervals: Interval[]): Interval[] => {
@@ -439,6 +463,76 @@ const createBindingArrow = (
     ...update,
     isDeleted: bindingArrow.isDeleted,
   };
+};
+
+/**
+ * Creates one bound flowchart node at a pointer-derived position. The primary
+ * axis stays where the pointer placed it; if that lane is occupied by another
+ * connected node, the node slides along the cross axis to the nearest free
+ * slot, matching the collision-avoidance behavior of keyboard creation.
+ */
+export const addNewNodeAtPosition = (
+  startNode: NonDeleted<ExcalidrawFlowchartNodeElement>,
+  appState: AppState,
+  direction: LinkDirection,
+  scene: Scene,
+  position: { x: number; y: number },
+) => {
+  const horizontal = direction === "left" || direction === "right";
+  const nodePrimarySize = horizontal ? startNode.width : startNode.height;
+  const nodeCrossSize = horizontal ? startNode.height : startNode.width;
+  const crossGap = horizontal ? VERTICAL_OFFSET : HORIZONTAL_OFFSET;
+  const primaryStart = horizontal ? position.x : position.y;
+  const primaryEnd = primaryStart + nodePrimarySize;
+  const elementsMap = scene.getNonDeletedElementsMap();
+  const obstacles = getConnectedFlowchartNodes(startNode, elementsMap).map(
+    (node) => aabbForElement(node, elementsMap),
+  );
+  const occupied = mergeIntervals(
+    obstacles
+      .filter((bounds) => {
+        const start = horizontal ? bounds[0] : bounds[1];
+        const end = horizontal ? bounds[2] : bounds[3];
+        return start < primaryEnd && end > primaryStart;
+      })
+      .map((bounds) => ({
+        start: (horizontal ? bounds[1] : bounds[0]) - crossGap,
+        end: (horizontal ? bounds[3] : bounds[2]) + crossGap,
+      })),
+  );
+  const desiredCross = horizontal ? position.y : position.x;
+  const crossStart = findNearestFreeSlot(desiredCross, nodeCrossSize, occupied);
+  const node = cloneFlowchartNode(
+    startNode,
+    horizontal ? position.x : crossStart,
+    horizontal ? crossStart : position.y,
+  );
+  const arrow = createBindingArrow(startNode, node, direction, appState, scene);
+  const pendingNodes: NonDeletedExcalidrawElement[] = [node, arrow];
+
+  if (startNode.frameId) {
+    const frame = elementsMap.get(startNode.frameId);
+    if (
+      frame &&
+      isFrameElement(frame) &&
+      pendingNodes.every(
+        (pending) =>
+          elementsAreInFrameBounds([pending], frame, elementsMap) ||
+          elementOverlapsWithFrame(pending, frame, elementsMap),
+      )
+    ) {
+      return {
+        node,
+        nodes: pendingNodes.map((pending) =>
+          mutateElement(pending, elementsMap, {
+            frameId: startNode.frameId,
+          }),
+        ),
+      };
+    }
+  }
+
+  return { node, nodes: pendingNodes };
 };
 
 export class FlowChartNavigator {

@@ -33,6 +33,8 @@ export type StaticCanvasRenderConfig = {
   /** whether to render link icons on elements with links (never rendered
    when exporting). @default true */
   renderLinks?: boolean;
+  /** one eligible selected node for directional flowchart handles */
+  flowchartHandlesElement?: NonDeletedExcalidrawElement | null;
   /** when exporting the behavior is slightly different (e.g. we can't use
    CSS filters), and we disable render optimizations for best output */
   isExporting: boolean;

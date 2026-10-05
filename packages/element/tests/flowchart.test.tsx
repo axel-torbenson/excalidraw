@@ -1,10 +1,13 @@
-import { KEYS, reseed } from "@excalidraw/common";
+import { KEYS, reseed, sceneCoordsToViewportCoords } from "@excalidraw/common";
 
 import { Excalidraw } from "@excalidraw/excalidraw";
 
+import { getFlowchartHandlePosition } from "@excalidraw/element";
+import { createUndoAction } from "@excalidraw/excalidraw/actions/actionHistory";
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { UI, Keyboard, Pointer } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
+  act,
   render,
   unmountComponent,
 } from "@excalidraw/excalidraw/tests/test-utils";
@@ -429,6 +432,203 @@ describe("flow chart band-search placement", () => {
     // the obstacles were not moved
     expect({ x: c1.x, y: c1.y }).toEqual({ x: 300, y: -300 });
     expect({ x: c2.x, y: c2.y }).toEqual({ x: 300, y: 300 });
+  });
+});
+
+describe("flowchart drag handles", () => {
+  let source: NonDeletedExcalidrawElement;
+
+  beforeEach(() => {
+    API.clearSelection();
+    source = API.createElement({
+      type: "rectangle",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 100,
+      backgroundColor: "#ffec99",
+      strokeColor: "#123456",
+      fillStyle: "solid",
+    });
+    API.setElements([source]);
+    API.setSelectedElements([source]);
+  });
+
+  const toViewport = (x: number, y: number) =>
+    sceneCoordsToViewportCoords({ sceneX: x, sceneY: y }, h.state);
+
+  const dragHandle = (
+    element: NonDeletedExcalidrawElement,
+    direction: "up" | "right" | "down" | "left",
+    target: { x: number; y: number },
+  ) => {
+    const handle = getFlowchartHandlePosition(
+      element as any,
+      direction,
+      h.state.zoom.value,
+    );
+    const startViewport = toViewport(handle.x, handle.y);
+    const targetViewport = toViewport(target.x, target.y);
+    mouse.downAt(startViewport.x, startViewport.y);
+    mouse.moveTo(targetViewport.x, targetViewport.y);
+    return targetViewport;
+  };
+
+  it.each([
+    ["right", { x: 500, y: 50 }, { x: 400, y: 0 }],
+    ["left", { x: -300, y: 50 }, { x: -400, y: 0 }],
+    ["down", { x: 100, y: 400 }, { x: 0, y: 350 }],
+    ["up", { x: 100, y: -300 }, { x: 0, y: -350 }],
+  ] as const)(
+    "dragging the %s handle places and binds a node",
+    (direction, pointer, expectedPosition) => {
+      const targetViewport = dragHandle(source, direction, pointer);
+      const preview = h.app.flowchart.pendingNodes?.find(
+        (element) => element.type === "rectangle",
+      );
+      expect(preview).toMatchObject(expectedPosition);
+
+      mouse.upAt(targetViewport.x, targetViewport.y);
+
+      const node = h.elements.find(
+        (element) => element.id !== source.id && element.type === "rectangle",
+      );
+      const arrow = h.elements.find((element) => element.type === "arrow");
+      expect(node).toMatchObject({
+        ...expectedPosition,
+        width: source.width,
+        height: source.height,
+        backgroundColor: source.backgroundColor,
+        strokeColor: source.strokeColor,
+        fillStyle: source.fillStyle,
+      });
+      expect(arrow).toMatchObject({
+        startBinding: { elementId: source.id },
+        endBinding: { elementId: node?.id },
+      });
+      expect(Object.keys(h.state.selectedElementIds)).toEqual([node?.id]);
+    },
+  );
+
+  it("clones diamonds and records the creation as one undo step", () => {
+    const diamond = API.createElement({
+      type: "diamond",
+      x: 0,
+      y: 0,
+      width: 160,
+      height: 120,
+      backgroundColor: "#cceeff",
+    });
+    API.setElements([diamond]);
+    API.setSelectedElements([diamond]);
+    act(() => {
+      h.app.scheduleCapture();
+      h.setState({});
+    });
+    const historyLength = API.getUndoStack().length;
+    const targetViewport = dragHandle(diamond, "right", { x: 450, y: 60 });
+    mouse.upAt(targetViewport.x, targetViewport.y);
+
+    const node = h.elements.find(
+      (element) => element.id !== diamond.id && element.type === "diamond",
+    );
+    const arrow = h.elements.find((element) => element.type === "arrow");
+    expect(node).toMatchObject({
+      type: "diamond",
+      x: 370,
+      y: 0,
+      width: 160,
+      height: 120,
+      backgroundColor: "#cceeff",
+    });
+    expect(API.getUndoStack()).toHaveLength(historyLength + 1);
+
+    API.executeAction(createUndoAction(h.history));
+    expect(
+      h.elements.find((element) => element.id === diamond.id)?.isDeleted,
+    ).toBe(false);
+    expect(
+      h.elements.find((element) => element.id === node?.id)?.isDeleted,
+    ).toBe(true);
+    expect(
+      h.elements.find((element) => element.id === arrow?.id)?.isDeleted,
+    ).toBe(true);
+  });
+
+  it("cancels Escape and short drags without changing scene or history", () => {
+    const historyLength = API.getUndoStack().length;
+    const start = getFlowchartHandlePosition(
+      source as any,
+      "right",
+      h.state.zoom.value,
+    );
+    const startViewport = toViewport(start.x, start.y);
+    let targetViewport = toViewport(start.x + 80, start.y);
+
+    mouse.downAt(startViewport.x, startViewport.y);
+    mouse.moveTo(targetViewport.x, targetViewport.y);
+    expect(h.app.flowchart.pendingNodes).not.toBeNull();
+    Keyboard.keyPress(KEYS.ESCAPE);
+    mouse.upAt(targetViewport.x, targetViewport.y);
+    expect(h.elements).toHaveLength(1);
+    expect(h.app.flowchart.pendingNodes).toBeNull();
+    expect(API.getUndoStack()).toHaveLength(historyLength);
+
+    targetViewport = toViewport(start.x + 4, start.y);
+    mouse.downAt(startViewport.x, startViewport.y);
+    mouse.moveTo(targetViewport.x, targetViewport.y);
+    mouse.upAt(targetViewport.x, targetViewport.y);
+    expect(h.elements).toHaveLength(1);
+    expect(API.getUndoStack()).toHaveLength(historyLength);
+
+    targetViewport = toViewport(start.x + 80, start.y);
+    mouse.downAt(startViewport.x, startViewport.y);
+    mouse.moveTo(targetViewport.x, targetViewport.y);
+    const returnedToHandle = toViewport(start.x, start.y);
+    mouse.upAt(returnedToHandle.x, returnedToHandle.y);
+    expect(h.elements).toHaveLength(1);
+    expect(API.getUndoStack()).toHaveLength(historyLength);
+
+    targetViewport = toViewport(start.x + 80, start.y);
+    mouse.downAt(startViewport.x, startViewport.y);
+    mouse.moveTo(targetViewport.x, targetViewport.y);
+    const returnedOverSource = toViewport(source.x + 80, source.y + 50);
+    mouse.upAt(returnedOverSource.x, returnedOverSource.y);
+    expect(h.elements).toHaveLength(1);
+    expect(API.getUndoStack()).toHaveLength(historyLength);
+  });
+
+  it("a click uses the default directional placement", () => {
+    const handle = getFlowchartHandlePosition(
+      source as any,
+      "right",
+      h.state.zoom.value,
+    );
+    const viewport = toViewport(handle.x, handle.y);
+    mouse.downAt(viewport.x, viewport.y);
+    mouse.upAt(viewport.x, viewport.y);
+
+    const node = h.elements.find(
+      (element) => element.id !== source.id && element.type === "rectangle",
+    );
+    expect(node).toMatchObject({ x: 300, y: 0 });
+  });
+
+  it("hides handles for ellipses and multi-selection", () => {
+    const ellipse = API.createElement({
+      type: "ellipse",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 100,
+    });
+    API.setElements([ellipse]);
+    API.setSelectedElements([ellipse]);
+    expect(h.app.flowchart.handleElement).toBeNull();
+
+    API.setElements([source, ellipse]);
+    API.setSelectedElements([source, ellipse]);
+    expect(h.app.flowchart.handleElement).toBeNull();
   });
 });
 

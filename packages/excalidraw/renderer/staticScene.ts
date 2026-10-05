@@ -9,6 +9,7 @@ import { isElementLink } from "@excalidraw/element";
 import { createPlaceholderEmbeddableLabel } from "@excalidraw/element";
 import { getBoundTextElement } from "@excalidraw/element";
 import {
+  getFlowchartHandlePosition,
   isEmbeddableElement,
   isIframeLikeElement,
   isTextElement,
@@ -513,6 +514,54 @@ const _renderStaticScene = ({
       console.error(error);
     }
   });
+
+  const handleElement = renderConfig.flowchartHandlesElement;
+  if (
+    handleElement &&
+    (handleElement.type === "rectangle" || handleElement.type === "diamond")
+  ) {
+    const directions = [
+      { direction: "up" as const, dx: 0, dy: -1 },
+      { direction: "right" as const, dx: 1, dy: 0 },
+      { direction: "down" as const, dx: 0, dy: 1 },
+      { direction: "left" as const, dx: -1, dy: 0 },
+    ];
+    const zoom = appState.zoom.value;
+    const radius = 5 / zoom;
+    context.save();
+    context.fillStyle = appState.theme === THEME.DARK ? "#242424" : "#ffffff";
+    context.strokeStyle = "#6965db";
+    context.lineWidth = 1.25 / zoom;
+    directions.forEach(({ direction, dx, dy }) => {
+      const position = getFlowchartHandlePosition(
+        handleElement,
+        direction,
+        zoom,
+      );
+      const x = position.x + appState.scrollX;
+      const y = position.y + appState.scrollY;
+      context.beginPath();
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+
+      context.beginPath();
+      context.moveTo(x - dx * (2 / zoom), y - dy * (2 / zoom));
+      context.lineTo(x + dx * (2 / zoom), y + dy * (2 / zoom));
+      context.moveTo(x + dx * (2 / zoom), y + dy * (2 / zoom));
+      context.lineTo(
+        x + dx * (2 / zoom) - dy * (1.5 / zoom),
+        y + dy * (2 / zoom) + dx * (1.5 / zoom),
+      );
+      context.moveTo(x + dx * (2 / zoom), y + dy * (2 / zoom));
+      context.lineTo(
+        x + dx * (2 / zoom) + dy * (1.5 / zoom),
+        y + dy * (2 / zoom) - dx * (1.5 / zoom),
+      );
+      context.stroke();
+    });
+    context.restore();
+  }
 };
 
 /** throttled to animation framerate */

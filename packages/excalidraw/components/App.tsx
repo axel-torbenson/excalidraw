@@ -2634,6 +2634,8 @@ class App extends React.Component<AppProps, AppState> {
                                 this.elementsPendingErasure,
                               pendingFlowchartNodes:
                                 this.flowchart.pendingNodes,
+                              flowchartHandlesElement:
+                                this.flowchart.handleElement,
                               theme: this.state.theme,
                             }}
                           />
@@ -8470,6 +8472,9 @@ class App extends React.Component<AppProps, AppState> {
   private handleCanvasPointerDown = (
     event: React.PointerEvent<HTMLElement>,
   ) => {
+    if (this.flowchart.handlePointerDown(event)) {
+      return;
+    }
     if (
       !this.isInteractionEnabled() &&
       !this.isToolSupported(this.state.activeTool.type)
