@@ -1,0 +1,69 @@
+.excalidraw {
+  .excalidraw-flowchart-add-step {
+    position: absolute;
+    z-index: var(--zIndex-canvasButtons);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: auto;
+    white-space: nowrap;
+  }
+
+  .excalidraw-flowchart-add-step__button,
+  .excalidraw-flowchart-add-step__direction {
+    border: 1px solid var(--default-border-color);
+    color: var(--icon-color-primary);
+    background: var(--island-bg-color);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .excalidraw-flowchart-add-step__button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 4px 9px;
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
+    font-size: 12px;
+  }
+
+  .excalidraw-flowchart-add-step__button > span {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .excalidraw-flowchart-add-step__picker {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--border-radius-lg);
+    background: var(--island-bg-color);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+  }
+
+  .excalidraw-flowchart-add-step__direction {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-color: transparent;
+    border-radius: var(--border-radius-md);
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .excalidraw-flowchart-add-step__button:hover,
+  .excalidraw-flowchart-add-step__direction:hover,
+  .excalidraw-flowchart-add-step__direction[aria-pressed="true"] {
+    background: var(--button-hover-bg);
+  }
+
+  .excalidraw-flowchart-add-step__button:focus-visible,
+  .excalidraw-flowchart-add-step__direction:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+}

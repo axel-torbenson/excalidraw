@@ -181,6 +181,48 @@ export class AppFlowchart {
     });
   }
 
+  addStep = (
+    startNode: NonDeletedExcalidrawElement,
+    direction: LinkDirection,
+  ) => {
+    const selectedElements = getSelectedElements(
+      this.app.scene.getNonDeletedElementsMap(),
+      this.app.state,
+    );
+    if (
+      selectedElements.length !== 1 ||
+      selectedElements[0].id !== startNode.id ||
+      (startNode.type !== "rectangle" && startNode.type !== "diamond") ||
+      this.app.state.viewModeEnabled ||
+      this.app.state.selectedElementsAreBeingDragged ||
+      this.app.state.resizingElement ||
+      this.app.state.isRotating ||
+      this.app.state.editingTextElement ||
+      this.app.state.newElement ||
+      this.app.state.selectionElement
+    ) {
+      return;
+    }
+
+    this.creator.clear();
+    this.creator.createNodes(
+      startNode,
+      this.app.state,
+      direction,
+      this.app.scene,
+    );
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+
+    if (!nodes.length) {
+      return;
+    }
+
+    this.app.insertNewElements(nodes);
+    this.selectAndReveal(nodes[0]);
+    this.captureUpdate();
+  };
+
   private static getLinkDirectionFromKey(key: string): LinkDirection {
     switch (key) {
       case KEYS.ARROW_UP:
