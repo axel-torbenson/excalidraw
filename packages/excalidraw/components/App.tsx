@@ -449,6 +449,7 @@ import { AppToolDrag, TOOL_DRAG_PREVIEW_OPACITY } from "./App.toolDrag";
 import { AppCursor } from "./App.cursor";
 import { AppDrawShape } from "./App.drawshape";
 import { AppFlowchart } from "./App.flowchart";
+import { FlowchartDirectionalButtons } from "./FlowchartDirectionalButtons";
 import { AppViewport, RIGHT_SIDEBAR_WIDTH } from "./App.viewport";
 import { AppWheel } from "./App.wheel";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2371,6 +2372,22 @@ class App extends React.Component<AppProps, AppState> {
             this.state.cursorButton === "down");
 
     const firstSelectedElement = selectedElements[0];
+    const canShowFlowchartDirectionalButtons =
+      selectedElements.length === 1 &&
+      (firstSelectedElement.type === "rectangle" ||
+        firstSelectedElement.type === "diamond") &&
+      !firstSelectedElement.locked &&
+      this.isInteractionEnabled() &&
+      !this.state.viewModeEnabled &&
+      !this.state.selectedElementsAreBeingDragged &&
+      !this.state.resizingElement &&
+      !this.state.isRotating &&
+      !this.state.editingTextElement &&
+      !this.state.editingFrame &&
+      !this.state.selectionElement &&
+      !this.state.newElement &&
+      !this.flowchart.isCreatingChart &&
+      this.state.activeTool.type === TOOL_TYPE.selection;
 
     const showShapeSwitchPanel =
       editorJotaiStore.get(convertElementTypePopupAtom)?.type === "panel";
@@ -2521,6 +2538,18 @@ class App extends React.Component<AppProps, AppState> {
                                 }
                               />
                             )}
+                          {canShowFlowchartDirectionalButtons && (
+                            <FlowchartDirectionalButtons
+                              element={firstSelectedElement}
+                              appState={this.state}
+                              onCreate={(direction) =>
+                                this.flowchart.createNode(
+                                  firstSelectedElement,
+                                  direction,
+                                )
+                              }
+                            />
+                          )}
                           {this.isDefaultUIEnabled() &&
                             this.props.aiEnabled !== false &&
                             selectedElements.length === 1 &&

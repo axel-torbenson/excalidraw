@@ -12,6 +12,7 @@ import {
 
 import type {
   ExcalidrawElement,
+  ExcalidrawFlowchartNodeElement,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
@@ -43,6 +44,30 @@ export class AppFlowchart {
   get isCreatingChart() {
     return this.creator.isCreatingChart;
   }
+
+  createNode = (
+    startNode: NonDeletedExcalidrawElement & ExcalidrawFlowchartNodeElement,
+    direction: LinkDirection,
+  ) => {
+    this.creator.clear();
+    this.creator.createNodes(
+      startNode,
+      this.app.state,
+      direction,
+      this.app.scene,
+    );
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+
+    if (!nodes.length) {
+      return;
+    }
+
+    this.app.insertNewElements(nodes);
+    this.selectAndReveal(nodes[0]);
+    this.app.focusContainer();
+    this.captureUpdate();
+  };
 
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
