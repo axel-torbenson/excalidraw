@@ -1,0 +1,73 @@
+.excalidraw .flowchart-add-step {
+  position: absolute;
+  z-index: var(--zIndex-layerUI);
+  transform: translateX(-50%);
+  pointer-events: auto;
+  font-size: 13px;
+
+  button {
+    color: var(--text-primary-color);
+    background: var(--island-bg-color);
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    min-height: 36px;
+
+    &:hover {
+      background: var(--button-hover-bg);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  .flowchart-add-step__trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid var(--color-gray-20);
+    box-shadow: 0 2px 8px #00000014;
+  }
+
+  &__picker {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 192px;
+    padding: 8px;
+    box-sizing: border-box;
+    background: var(--island-bg-color);
+    border: 1px solid var(--color-gray-20);
+    border-radius: 12px;
+    box-shadow: 0 6px 20px #0000001f;
+  }
+
+  &__title {
+    padding: 4px 6px 8px;
+    font-weight: 600;
+  }
+
+  [role="menu"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  [role="menuitem"] {
+    text-align: left;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__hint {
+    padding: 10px 6px 4px;
+    font-size: 11px;
+    color: var(--color-gray-60);
+    line-height: 1.4;
+  }
+}

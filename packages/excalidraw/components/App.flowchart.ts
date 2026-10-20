@@ -50,6 +50,31 @@ export class AppFlowchart {
     this.navigator.clear();
   };
 
+  /** A single committed step, using the same placement and binding as the shortcut. */
+  addStep = (direction: LinkDirection) => {
+    const selected = this.app.scene.getSelectedElements(this.app.state);
+    const node = selected[0];
+    if (
+      selected.length !== 1 ||
+      !node ||
+      (node.type !== "rectangle" && node.type !== "diamond") ||
+      node.locked ||
+      this.app.state.viewModeEnabled
+    ) {
+      return;
+    }
+    this.clear();
+    this.creator.createNodes(node, this.app.state, direction, this.app.scene);
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+    if (nodes.length) {
+      this.app.insertNewElements(nodes);
+      this.selectAndReveal(nodes[0]);
+      this.captureUpdate();
+    }
+    this.app.focusContainer();
+  };
+
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
     const operation = this.resolveKeyboardEventToOperation(event);
 
