@@ -7,6 +7,7 @@ import {
   FlowChartNavigator,
   getSelectedElements,
   isFlowchartNodeElement,
+  Scene,
   type LinkDirection,
 } from "@excalidraw/element";
 
@@ -33,6 +34,11 @@ type FlowchartOperation =
 export class AppFlowchart {
   private creator = new FlowChartCreator();
   private navigator = new FlowChartNavigator();
+  private drag: {
+    sourceId: string;
+    direction: LinkDirection | null;
+    scene: Scene;
+  } | null = null;
 
   constructor(private app: App) {}
 
@@ -48,9 +54,81 @@ export class AppFlowchart {
   clear = () => {
     this.creator.clear();
     this.navigator.clear();
+    this.drag?.scene.destroy();
+    this.drag = null;
+  };
+
+  beginDrag = (source: NonDeletedExcalidrawElement) => {
+    this.clear();
+    const scene = new Scene();
+    // Binding creation mutates its targets. Keep every preview mutation out of
+    // the real scene (including the source's reciprocal boundElements).
+    scene.replaceAllElements(
+      this.app.scene.getElementsIncludingDeleted().map((element) => ({
+        ...element,
+        boundElements: element.boundElements?.slice() ?? null,
+      })),
+    );
+    this.drag = { sourceId: source.id, direction: null, scene };
+  };
+
+  previewDrag = (direction: LinkDirection) => {
+    const drag = this.drag;
+    if (!drag || drag.direction === direction) {
+      return;
+    }
+    const source = drag.scene.getNonDeletedElement(drag.sourceId);
+    if (!source || !isFlowchartNodeElement(source)) {
+      return;
+    }
+    this.creator.clear();
+    this.creator.createNodes(source, this.app.state, direction, drag.scene);
+    drag.direction = direction;
+    this.app.triggerRender(true);
+  };
+
+  cancelDrag = () => {
+    if (!this.drag) {
+      return;
+    }
+    this.clear();
+    this.app.triggerRender(true);
+  };
+
+  finishDrag = () => {
+    if (!this.drag) {
+      return;
+    }
+    const source = this.app.scene.getNonDeletedElement(this.drag.sourceId);
+    const nodes = this.creator.pendingNodes ?? [];
+    this.clear();
+    if (!source || source.locked || !nodes.length) {
+      this.app.triggerRender(true);
+      return;
+    }
+    this.app.insertNewElements(nodes);
+    this.app.scene.mutateElement(source, {
+      boundElements: [
+        ...(source.boundElements ?? []),
+        ...nodes
+          .filter((node) => node.type === "arrow")
+          .map((node) => ({ id: node.id, type: "arrow" as const })),
+      ],
+    });
+    this.selectAndReveal(nodes[0]);
+    this.captureUpdate();
   };
 
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
+    if (this.drag) {
+      if (event.type === "keydown" && event.key === KEYS.ESCAPE) {
+        event.preventDefault();
+        this.cancelDrag();
+        return true;
+      }
+      // Releasing modifiers must not commit a pointer-owned preview.
+      return false;
+    }
     const operation = this.resolveKeyboardEventToOperation(event);
 
     switch (operation.type) {
