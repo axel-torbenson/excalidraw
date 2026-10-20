@@ -44,6 +44,37 @@ export class AppFlowchart {
     return this.creator.isCreatingChart;
   }
 
+  /** Commit a single contextual creation using the keyboard workflow's engine. */
+  createNode = (direction: LinkDirection) => {
+    const { app } = this;
+    const selected = getSelectedElements(
+      app.scene.getNonDeletedElementsMap(),
+      app.state,
+    );
+    const source = selected[0];
+    if (
+      selected.length !== 1 ||
+      !source ||
+      source.locked ||
+      (source.type !== "rectangle" && source.type !== "diamond") ||
+      app.state.viewModeEnabled ||
+      !app.isInteractionEnabled()
+    ) {
+      return;
+    }
+    this.clear();
+    this.creator.createNodes(source, app.state, direction, app.scene);
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+    if (nodes.length) {
+      app.insertNewElements(nodes);
+      this.selectAndReveal(nodes[0]);
+      this.captureUpdate();
+      // Keep the new shape selected: Enter starts its label, or + continues.
+      app.focusContainer();
+    }
+  };
+
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
     this.creator.clear();
