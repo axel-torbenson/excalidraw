@@ -1,4 +1,5 @@
 import { KEYS, reseed } from "@excalidraw/common";
+import { CaptureUpdateAction } from "@excalidraw/element";
 
 import { Excalidraw } from "@excalidraw/excalidraw";
 
@@ -6,6 +7,8 @@ import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { UI, Keyboard, Pointer } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
   render,
+  fireEvent,
+  screen,
   unmountComponent,
 } from "@excalidraw/excalidraw/tests/test-utils";
 
@@ -30,6 +33,187 @@ beforeEach(async () => {
   UI.clickTool("arrow");
   UI.clickByTitle("Architect");
   UI.clickTool("selection");
+});
+
+describe("directional plus controls", () => {
+  it.each(["up", "right", "down", "left"] as const)(
+    "creates and binds a styled successor %s in one undo step",
+    (direction) => {
+      const source = API.createElement({
+        type: "rectangle",
+        x: 300,
+        y: 300,
+        width: 120,
+        height: 80,
+        strokeColor: "#e03131",
+        backgroundColor: "#ffc9c9",
+      });
+      API.updateScene({
+        elements: [source],
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      });
+      API.setSelectedElements([source]);
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: `Add connected shape ${direction}`,
+        }),
+      );
+      const successor = h.elements.find(
+        (el) => el.type === "rectangle" && el.id !== source.id,
+      )!;
+      const arrow = h.elements.find((el) => el.type === "arrow")!;
+      expect(h.elements).toHaveLength(3);
+      expect(successor.strokeColor).toBe(source.strokeColor);
+      expect(successor.backgroundColor).toBe(source.backgroundColor);
+      expect(successor.width).toBe(source.width);
+      expect(successor.height).toBe(source.height);
+      expect(h.state.selectedElementIds[successor.id]).toBe(true);
+      expect(arrow).toMatchObject({
+        startBinding: { elementId: source.id },
+        endBinding: { elementId: successor.id },
+        elbowed: true,
+      });
+      if (direction === "right") {
+        expect(successor.x).toBeGreaterThan(source.x + source.width);
+      } else if (direction === "left") {
+        expect(successor.x + successor.width).toBeLessThan(source.x);
+      } else if (direction === "down") {
+        expect(successor.y).toBeGreaterThan(source.y + source.height);
+      } else {
+        expect(successor.y + successor.height).toBeLessThan(source.y);
+      }
+      Keyboard.withModifierKeys({ ctrl: true }, () => Keyboard.keyPress("z"));
+      expect(h.elements.filter((el) => !el.isDeleted)).toHaveLength(1);
+    },
+  );
+
+  it("continues from the newly selected diamond and supports Enter to label", () => {
+    const source = API.createElement({
+      type: "diamond",
+      x: 300,
+      y: 300,
+      width: 120,
+      height: 100,
+    });
+    API.setElements([source]);
+    API.setSelectedElements([source]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add connected shape right" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add connected shape down" }),
+    );
+    expect(h.elements.filter((el) => el.type === "diamond")).toHaveLength(3);
+    Keyboard.keyPress(KEYS.ENTER);
+    expect(h.state.editingTextElement).not.toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Continue flowchart" }),
+    ).toBeNull();
+  });
+
+  it("hides controls for unsupported, locked, multiple and read-only selection", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    const ellipse = API.createElement({ type: "ellipse" });
+    const locked = API.createElement({ type: "diamond", locked: true });
+    API.setElements([rectangle, ellipse, locked]);
+    for (const selection of [[], [ellipse], [locked], [rectangle, ellipse]]) {
+      API.setSelectedElements(selection);
+      expect(
+        screen.queryByRole("group", { name: "Continue flowchart" }),
+      ).toBeNull();
+    }
+    API.setSelectedElements([rectangle]);
+    expect(
+      screen.getAllByRole("button", { name: /Add connected shape/ }),
+    ).toHaveLength(4);
+    API.setAppState({ viewModeEnabled: true });
+    expect(
+      screen.queryByRole("group", { name: "Continue flowchart" }),
+    ).toBeNull();
+  });
+
+  it("positions controls in viewport coordinates when zoomed and panned", () => {
+    const rectangle = API.createElement({
+      type: "rectangle",
+      x: 300,
+      y: 300,
+      width: 120,
+      height: 80,
+    });
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+    const button = screen.getByRole("button", {
+      name: "Add connected shape right",
+    });
+    const initialZoom = h.state.zoom.value;
+    API.setAppState({
+      zoom: { value: (initialZoom * 2) as typeof initialZoom },
+    });
+    const before = parseFloat(button.style.left);
+    API.setAppState({ scrollX: h.state.scrollX + 50 });
+    expect(parseFloat(button.style.left)).toBeCloseTo(
+      before + 50 * h.state.zoom.value,
+    );
+  });
+
+  it("hides controls during canvas interactions and returns them afterwards", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+    for (const state of [
+      { selectedElementsAreBeingDragged: true },
+      { resizingElement: rectangle },
+      { isRotating: true },
+      { zenModeEnabled: true },
+    ]) {
+      API.setAppState({
+        selectedElementsAreBeingDragged: false,
+        resizingElement: null,
+        isRotating: false,
+        zenModeEnabled: false,
+        ...state,
+      });
+      expect(
+        screen.queryByRole("group", { name: "Continue flowchart" }),
+      ).toBeNull();
+      API.setAppState({
+        selectedElementsAreBeingDragged: false,
+        resizingElement: null,
+        isRotating: false,
+        zenModeEnabled: false,
+      });
+      expect(
+        screen.getByRole("group", { name: "Continue flowchart" }),
+      ).not.toBeNull();
+    }
+  });
+
+  it("does not route a focused plus button's Enter key to text editing", () => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+    const button = screen.getByRole("button", {
+      name: "Add connected shape right",
+    });
+    button.focus();
+    fireEvent.keyDown(button, { key: KEYS.ENTER });
+    expect(h.state.editingTextElement).toBeNull();
+    fireEvent.click(button);
+    expect(h.elements).toHaveLength(3);
+  });
+
+  it("keeps an interaction-disabled editor inert", async () => {
+    unmountComponent();
+    await render(<Excalidraw interaction={false} />);
+    const rectangle = API.createElement({ type: "rectangle" });
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+    expect(
+      screen.queryByRole("group", { name: "Continue flowchart" }),
+    ).toBeNull();
+    h.app.flowchart.createNode("right");
+    expect(h.elements).toHaveLength(1);
+  });
 });
 
 describe("flow chart creation", () => {
