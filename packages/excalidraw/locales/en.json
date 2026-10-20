@@ -1,4 +1,14 @@
 {
+  "flowchart": {
+    "addStep": "Add step",
+    "connectNext": "Connect next step",
+    "direction": "Step direction",
+    "right": "Right",
+    "down": "Down",
+    "left": "Left",
+    "up": "Up",
+    "labelHint": "Then press Enter to add a label"
+  },
   "labels": {
     "signUp": "Sign up",
     "signIn": "Sign in",
