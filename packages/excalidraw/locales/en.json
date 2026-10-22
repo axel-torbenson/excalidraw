@@ -1,5 +1,11 @@
 {
   "labels": {
+    "addStep": "Add step",
+    "addStepDirection": "Choose step direction",
+    "addStepUp": "Add step above",
+    "addStepRight": "Add step to the right",
+    "addStepDown": "Add step below",
+    "addStepLeft": "Add step to the left",
     "signUp": "Sign up",
     "signIn": "Sign in",
     "paste": "Paste",

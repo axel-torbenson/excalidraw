@@ -50,6 +50,41 @@ export class AppFlowchart {
     this.navigator.clear();
   };
 
+  previewStep = (direction: LinkDirection) => {
+    this.creator.clear();
+    const selected = this.app.scene.getSelectedElements(this.app.state);
+    if (
+      selected.length === 1 &&
+      !selected[0].locked &&
+      (selected[0].type === "rectangle" || selected[0].type === "diamond")
+    ) {
+      this.creator.createNodes(
+        selected[0],
+        this.app.state,
+        direction,
+        this.app.scene,
+      );
+    }
+    this.app.triggerRender(true);
+  };
+
+  cancelStepPreview = () => {
+    this.creator.clear();
+    this.app.triggerRender(true);
+  };
+
+  commitStep = (direction: LinkDirection) => {
+    this.previewStep(direction);
+    const nodes = this.creator.pendingNodes ?? [];
+    this.creator.clear();
+    if (nodes.length) {
+      this.app.insertNewElements(nodes);
+      this.selectAndReveal(nodes[0]);
+      this.captureUpdate();
+    }
+    this.app.focusContainer();
+  };
+
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
     const operation = this.resolveKeyboardEventToOperation(event);
 

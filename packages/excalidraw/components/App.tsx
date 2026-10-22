@@ -449,6 +449,7 @@ import { AppToolDrag, TOOL_DRAG_PREVIEW_OPACITY } from "./App.toolDrag";
 import { AppCursor } from "./App.cursor";
 import { AppDrawShape } from "./App.drawshape";
 import { AppFlowchart } from "./App.flowchart";
+import { FlowchartToolbar } from "./FlowchartToolbar";
 import { AppViewport, RIGHT_SIDEBAR_WIDTH } from "./App.viewport";
 import { AppWheel } from "./App.wheel";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2493,6 +2494,9 @@ class App extends React.Component<AppProps, AppState> {
                           </LayerUI>
 
                           <div className="excalidraw-textEditorContainer" />
+                          {this.isDefaultUIEnabled() && (
+                            <FlowchartToolbar app={this} />
+                          )}
                           <div className="excalidraw-contextMenuContainer" />
                           <div className="excalidraw-eye-dropper-container" />
                           <SVGLayer
