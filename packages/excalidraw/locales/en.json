@@ -1,5 +1,11 @@
 {
   "labels": {
+    "flowchartDrag": {
+      "up": "Drag to connect a shape above (click for default placement)",
+      "right": "Drag to connect a shape to the right (click for default placement)",
+      "down": "Drag to connect a shape below (click for default placement)",
+      "left": "Drag to connect a shape to the left (click for default placement)"
+    },
     "signUp": "Sign up",
     "signIn": "Sign in",
     "paste": "Paste",
