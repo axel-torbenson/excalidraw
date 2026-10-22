@@ -7,12 +7,17 @@ import {
   FlowChartNavigator,
   getSelectedElements,
   isFlowchartNodeElement,
+  addNewNodes,
+  deepCopyElement,
+  Scene,
   type LinkDirection,
 } from "@excalidraw/element";
 
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
+  ExcalidrawFlowchartNodeElement,
+  NonDeleted,
 } from "@excalidraw/element/types";
 
 import type React from "react";
@@ -33,12 +38,66 @@ type FlowchartOperation =
 export class AppFlowchart {
   private creator = new FlowChartCreator();
   private navigator = new FlowChartNavigator();
+  private pointerPreview: PendingExcalidrawElements | null = null;
 
   constructor(private app: App) {}
 
   get pendingNodes() {
-    return this.creator.pendingNodes;
+    return this.pointerPreview ?? this.creator.pendingNodes;
   }
+
+  previewPointerNode = (
+    source: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    direction: LinkDirection,
+    position: { x: number; y: number },
+  ) => {
+    // Binding helpers update both ends. Preview against copies, never the
+    // live scene, so cancellation is a true no-op (including boundElements).
+    const scene = new Scene();
+    const elements = this.app.scene
+      .getNonDeletedElements()
+      .map((element) => deepCopyElement(element));
+    scene.replaceAllElements(elements);
+    const template = elements.find((element) => element.id === source.id);
+    if (template && isFlowchartNodeElement(template)) {
+      this.pointerPreview = addNewNodes(
+        template,
+        this.app.state,
+        direction,
+        scene,
+        1,
+        null,
+        position,
+      ).nodes;
+    }
+    scene.destroy();
+    this.app.triggerRender(true);
+  };
+
+  clearPointerPreview = () => {
+    this.pointerPreview = null;
+    this.app.triggerRender(true);
+  };
+
+  commitPointerNode = (
+    source: NonDeleted<ExcalidrawFlowchartNodeElement>,
+    direction: LinkDirection,
+    position?: { x: number; y: number },
+  ) => {
+    this.pointerPreview = null;
+    const { nodes } = addNewNodes(
+      source,
+      this.app.state,
+      direction,
+      this.app.scene,
+      1,
+      null,
+      position,
+    );
+    this.app.insertNewElements(nodes);
+    this.selectAndReveal(nodes[0]);
+    this.captureUpdate();
+  };
 
   get isCreatingChart() {
     return this.creator.isCreatingChart;
@@ -46,6 +105,7 @@ export class AppFlowchart {
 
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
+    this.pointerPreview = null;
     this.creator.clear();
     this.navigator.clear();
   };

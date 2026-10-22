@@ -151,10 +151,10 @@ const getConnectedFlowchartNodes = (
 };
 
 // Place a cluster of `count` equally-sized nodes next to `parent`:
-// - the primary axis (the creation direction) is fixed at exactly one gap
-//   away from the parent, forming a search band the cluster will occupy
+// - the primary axis defaults to one gap from the parent. Pointer creation
+//   can supply a drop position, constrained to the chosen side of the parent
 // - along the cross axis the cluster slides into the free slot nearest the
-//   parent-centered ideal, treating band obstacles as immovable
+//   drop position (or parent-centered ideal), treating band obstacles as immovable
 // - `stickyCrossStart` anchors an already-visible pending cluster: growing it
 //   extends it at either end so the existing pending nodes keep their
 //   positions, unless the grown cluster no longer fits there
@@ -164,6 +164,7 @@ const placeCluster = (
   count: number,
   obstacles: readonly Bounds[],
   stickyCrossStart: number | null,
+  dropPosition?: { x: number; y: number },
 ): { positions: { x: number; y: number }[]; crossStart: number } => {
   const horizontal = direction === "left" || direction === "right";
   // INSIGHT: new nodes copy the parent's dimensions
@@ -177,10 +178,21 @@ const placeCluster = (
     ? parent.y + parent.height / 2
     : parent.x + parent.width / 2;
 
-  const primaryStart =
+  const defaultPrimaryStart =
     direction === "right" || direction === "down"
       ? parentPrimaryStart + nodePrimarySize + primaryGap
       : parentPrimaryStart - primaryGap - nodePrimarySize;
+  const primaryStart = dropPosition
+    ? direction === "right" || direction === "down"
+      ? Math.max(
+          parentPrimaryStart + nodePrimarySize + 20,
+          horizontal ? dropPosition.x : dropPosition.y,
+        )
+      : Math.min(
+          parentPrimaryStart - nodePrimarySize - 20,
+          horizontal ? dropPosition.x : dropPosition.y,
+        )
+    : defaultPrimaryStart;
 
   // cross-axis intervals of the obstacles sharing the band, inflated so the
   // cluster keeps at least one gap of clearance
@@ -214,7 +226,11 @@ const placeCluster = (
   const crossStart =
     anchoredStart ??
     findNearestFreeSlot(
-      parentCrossCenter - clusterCrossSize / 2,
+      dropPosition
+        ? horizontal
+          ? dropPosition.y
+          : dropPosition.x
+        : parentCrossCenter - clusterCrossSize / 2,
       clusterCrossSize,
       occupied,
     );
@@ -276,6 +292,7 @@ export const addNewNodes = (
   scene: Scene,
   numberOfNodes: number,
   stickyCrossStart: number | null = null,
+  dropPosition?: { x: number; y: number },
 ) => {
   const elementsMap = scene.getNonDeletedElementsMap();
   const obstacles = getConnectedFlowchartNodes(startNode, elementsMap).map(
@@ -288,6 +305,7 @@ export const addNewNodes = (
     numberOfNodes,
     obstacles,
     stickyCrossStart,
+    dropPosition,
   );
 
   const nodes: NonDeletedExcalidrawElement[] = [];
