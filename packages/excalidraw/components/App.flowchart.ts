@@ -5,6 +5,8 @@ import {
   CaptureUpdateAction,
   FlowChartCreator,
   FlowChartNavigator,
+  Scene,
+  deepCopyElement,
   getSelectedElements,
   isFlowchartNodeElement,
   type LinkDirection,
@@ -32,12 +34,13 @@ type FlowchartOperation =
  */
 export class AppFlowchart {
   private creator = new FlowChartCreator();
+  private pointerCreator = new FlowChartCreator();
   private navigator = new FlowChartNavigator();
 
   constructor(private app: App) {}
 
   get pendingNodes() {
-    return this.creator.pendingNodes;
+    return this.creator.pendingNodes ?? this.pointerCreator.pendingNodes;
   }
 
   get isCreatingChart() {
@@ -47,10 +50,74 @@ export class AppFlowchart {
   /** ends any in-progress flowchart creation/navigation session */
   clear = () => {
     this.creator.clear();
+    this.pointerCreator.clear();
     this.navigator.clear();
   };
 
+  /** Preview independently of the keyboard session, without changing the scene. */
+  private preparePointerNodes = (
+    direction: LinkDirection,
+    preview: boolean,
+  ) => {
+    this.pointerCreator.clear();
+    const selected = getSelectedElements(
+      this.app.scene.getNonDeletedElementsMap(),
+      this.app.state,
+    );
+    const node = selected[0];
+    if (
+      selected.length === 1 &&
+      node &&
+      !node.locked &&
+      (node.type === "rectangle" || node.type === "diamond")
+    ) {
+      // Binding creation mutates its source's boundElements. Keep hover entirely
+      // out of the live scene and history, including the source's version.
+      const scene = preview
+        ? new Scene(
+            this.app.scene
+              .getNonDeletedElements()
+              .map((element) => deepCopyElement(element)),
+          )
+        : this.app.scene;
+      this.pointerCreator.createNodes(
+        preview ? deepCopyElement(node) : node,
+        this.app.state,
+        direction,
+        scene,
+      );
+      if (preview) {
+        scene.destroy();
+      }
+    }
+  };
+
+  previewDirection = (direction: LinkDirection) => {
+    this.preparePointerNodes(direction, true);
+    this.app.triggerRender(true);
+  };
+
+  clearPointerPreview = () => {
+    if (this.pointerCreator.pendingNodes) {
+      this.pointerCreator.clear();
+      this.app.triggerRender(true);
+    }
+  };
+
+  createInDirection = (direction: LinkDirection) => {
+    // Recompute at activation time, including keyboard and touch activation.
+    this.preparePointerNodes(direction, false);
+    const nodes = this.pointerCreator.pendingNodes;
+    this.pointerCreator.clear();
+    if (nodes?.length) {
+      this.app.insertNewElements(nodes);
+      this.selectAndReveal(nodes[0]);
+      this.captureUpdate();
+    }
+  };
+
   handleKeyEvent = (event: React.KeyboardEvent | KeyboardEvent): boolean => {
+    this.clearPointerPreview();
     const operation = this.resolveKeyboardEventToOperation(event);
 
     switch (operation.type) {
